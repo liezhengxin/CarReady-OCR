@@ -1,0 +1,56 @@
+# --- secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- node ------------------------------------------------------------------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.eslintcache
+
+# --- generated synthetic data ----------------------------------------------
+# Regenerated deterministically from the master seed, so there is no reason to
+# version ~16k rows of imagery and fixtures. `python seed/run_seed.py` rebuilds
+# byte-identical output.
+seed/output/
+seed/fixtures/ocr/index.json
+seed/fixtures/vision/index.json
+
+# --- ml artefacts ----------------------------------------------------------
+mlruns/
+mlartifacts/
+packages/ml/labels/export/
+*.lgb
+*.pkl
+*.joblib
+
+# --- caches ----------------------------------------------------------------
+.cache/
+.DS_Store
+Thumbs.db
+
+# --- editors ---------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+*.swp

@@ -1,0 +1,41 @@
+[project]
+name = "caready-ml"
+version = "0.1.0"
+description = "Caready pricing models, grading engine, and provider interfaces"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+    "numpy==2.2.1",
+    "pandas==2.2.3",
+    "scikit-learn==1.6.1",
+    "lightgbm==4.5.0",
+    "shap==0.46.0",
+    "mlflow==2.19.0",
+    "PyYAML==6.0.2",
+    "rapidfuzz==3.11.0",
+    "jsonschema==4.23.0",
+    "Pillow==11.1.0",
+    "ImageHash==4.3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov==6.0.0",
+    "ruff==0.9.2",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["caready_ml*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,161 @@
+# =========================================================================
+# VARIANT CATALOG MATCHING (§6.1)
+# =========================================================================
+# There is currently no master variant catalog. This is the single biggest
+# accuracy risk in the system.
+#
+# Why it matters: the STNK does not record transmission at all, and its `tipe`
+# field is frequently a manufacturer code rather than a human-readable trim.
+# Trim and transmission move price materially. An unresolved variant produces
+# a systematic, DIRECTIONAL pricing error - not noise - and no amount of model
+# capacity recovers from it.
+#
+# The design consequence: below the confidence threshold we do not guess. The
+# appraiser must select the variant manually before pricing runs.
+# =========================================================================
+
+version: "1.0.0"
+
+hierarchy:
+  - brand
+  - model
+  - generation      # year range
+  - variant         # trim
+  - transmission
+  - body_type
+  - engine_cc
+
+# -------------------------------------------------------------------------
+# String normalisation applied to STNK merk / tipe / model before matching
+# -------------------------------------------------------------------------
+
+normalisation:
+  uppercase: true
+  collapse_whitespace: true
+  strip_characters: [".", ",", "'", "\"", "(", ")", "/"]
+  # Manufacturer type codes often embed the variant. Common separators are
+  # split so that "F601RM-GMDFJJ" yields comparable tokens.
+  split_on: ["-", "_"]
+  # Applied after tokenisation. Left side is the raw token, right the
+  # canonical form. Curated by admins via the catalog UI; every correction an
+  # admin makes appends here (§6.1 step 4).
+  token_aliases:
+    "M/T": "MT"
+    "MANUAL": "MT"
+    "M T": "MT"
+    "A/T": "AT"
+    "AUTOMATIC": "AT"
+    "AUTOMATIS": "AT"
+    "A T": "AT"
+    "TIPTRONIC": "AT"
+    "TRIPTONIC": "AT"
+    "CVT": "CVT"
+    "DUAL VVTI": "DUAL_VVTI"
+    "VVT-I": "VVTI"
+    "VVTI": "VVTI"
+    "TURBO": "TURBO"
+    "DSL": "DIESEL"
+    "SOLAR": "DIESEL"
+    "BENSIN": "PETROL"
+    "MINIBUS": "MPV"
+    "JEEP": "SUV"
+    "SEDAN": "SEDAN"
+    "MPV": "MPV"
+  # Tokens carrying no discriminating information; removed before scoring so
+  # they do not inflate similarity between unrelated variants.
+  stopword_tokens:
+    - "MOBIL"
+    - "PENUMPANG"
+    - "PRIBADI"
+    - "NEW"
+    - "ALL"
+    - "THE"
+
+# -------------------------------------------------------------------------
+# Fuzzy matching
+# -------------------------------------------------------------------------
+# Incoming STNK strings are matched against catalog entries and their learned
+# aliases. The match score is PERSISTED on the unit alongside the resolution
+# method, so a later audit can tell a confident match from a marginal one.
+# -------------------------------------------------------------------------
+
+matching:
+  algorithm: token_set_ratio     # rapidfuzz
+  # Composite score across the three STNK fields.
+  field_weights:
+    merk: 0.30
+    tipe: 0.45
+    model: 0.25
+  # Year must fall inside the generation's range, with this tolerance for
+  # registration-year vs build-year drift.
+  generation_year_tolerance: 1
+
+  # -----------------------------------------------------------------------
+  # Thresholds. The gap between auto_accept and manual_required is deliberate
+  # dead space: matches landing there are shown to the appraiser as a ranked
+  # suggestion list rather than applied or discarded.
+  # -----------------------------------------------------------------------
+  auto_accept_score: 92          # -> variant_resolution_method = auto
+  suggest_score: 70              # -> appraiser picks from ranked suggestions
+  # Below suggest_score -> unresolved, appraiser searches the full catalog.
+  #
+  # An exact alias hit bypasses scoring entirely.
+  alias_exact_match_auto_accepts: true
+  # Number of suggestions offered to the appraiser.
+  suggestion_count: 6
+
+  # An auto-accepted match that resolves to multiple variants differing only
+  # by transmission is NOT auto-accepted - transmission is unrecoverable from
+  # the STNK, so this is precisely the ambiguity that must reach a human.
+  block_auto_accept_on_transmission_ambiguity: true
+  # Same for trim ambiguity above this price spread between the candidates.
+  block_auto_accept_on_price_spread_pct: 12.0
+
+# -------------------------------------------------------------------------
+# Feedback loop
+# -------------------------------------------------------------------------
+# Every manual resolution and every admin correction feeds the matcher. This
+# is what turns a cold catalog into an accurate one over a few months.
+# -------------------------------------------------------------------------
+
+learning:
+  enabled: true
+  # A manual resolution writes the raw STNK strings as an alias of the chosen
+  # variant, with support_count = 1, incremented on repeat.
+  record_manual_resolution_as_alias: true
+  # An alias is only trusted for auto-accept once this many independent
+  # resolutions agree.
+  alias_min_support_for_auto_accept: 3
+  # If resolutions for the same raw string disagree, the alias is quarantined
+  # and surfaced to an admin rather than majority-voted.
+  quarantine_on_conflict: true
+  conflict_purity_threshold: 0.80
+
+# -------------------------------------------------------------------------
+# Bootstrap
+# -------------------------------------------------------------------------
+# Step 1 of the bootstrap path: mine distinct merk/tipe/model strings from
+# historical auction data, cluster, normalise.
+# -------------------------------------------------------------------------
+
+bootstrap:
+  source: historical_auction_records
+  # Clustering of raw strings before an admin names each cluster.
+  cluster_similarity_threshold: 88
+  min_cluster_size: 3
+  # Strings appearing fewer times than this are left unclustered for manual
+  # triage rather than forced into a nearby cluster.
+  min_occurrences_to_cluster: 2
+
+# -------------------------------------------------------------------------
+# Downstream effects of an unresolved variant
+# -------------------------------------------------------------------------
+
+unresolved:
+  # Pricing does not run at all on an unresolved variant. This is stricter
+  # than "degrade confidence" and is deliberate: a price computed on a guessed
+  # variant looks authoritative and is directionally wrong.
+  block_pricing: true
+  block_auto_progression: true
+  # Surfaced as a dashboard queue with its own SLA.
+  queue_name: variant_resolution

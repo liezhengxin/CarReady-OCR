@@ -1,0 +1,171 @@
+# =========================================================================
+# PLUGGABLE PROVIDER SELECTION (§5.1, §7.3)
+# =========================================================================
+# OCR/ICR and vision are behind interfaces so they can be swapped without
+# touching business logic. This file picks the implementation per environment.
+#
+# Defaults here are the CI/dev defaults: deterministic stubs, no network, no
+# API keys. Production overrides live in the environment, not in this file.
+# =========================================================================
+
+version: "1.0.0"
+
+# -------------------------------------------------------------------------
+# OCR / ICR
+# -------------------------------------------------------------------------
+# Two implementations ship:
+#   paddle        - local PaddleOCR. Nothing leaves our infrastructure, which
+#                   is the PDP-preferred posture for STNK documents.
+#   cloud_docai   - cloud document-AI adapter. Higher accuracy on degraded
+#                   documents, but sends the image off-premises and therefore
+#                   requires the config/pdp.yaml third_party flag and a DPA.
+#   stub          - deterministic fixture-driven provider used in tests and
+#                   the seeded demo stack. Never enable outside dev.
+# -------------------------------------------------------------------------
+
+ocr:
+  provider: stub                 # stub | paddle | cloud_docai
+  # Persist the raw provider response verbatim for every extraction. This is
+  # the audit record - when a field is disputed months later, the raw response
+  # is what settles it.
+  persist_raw_response: true
+  timeout_seconds: 45
+  max_retries: 2
+  retry_backoff_seconds: [2, 8]
+
+  providers:
+    stub:
+      # Reads pre-seeded extraction fixtures keyed by photo perceptual hash.
+      fixture_dir: "seed/fixtures/ocr"
+      # Deterministic confidence jitter so tests exercise the low-confidence
+      # routing path without being flaky.
+      seed: 20260101
+
+    paddle:
+      lang: en
+      use_gpu: false
+      det_model_dir: null        # null -> PaddleOCR default weights
+      rec_model_dir: null
+      # STNK is a structured form; the template matcher locates field regions
+      # before OCR runs, which is materially more accurate than free OCR plus
+      # regex over the whole document.
+      use_template_matcher: true
+      template_dir: "config/stnk_templates"
+
+    cloud_docai:
+      # Endpoint and credentials come from the environment, never this file.
+      endpoint_env: "OCR_CLOUD_ENDPOINT"
+      api_key_env: "OCR_CLOUD_API_KEY"
+      processor_id_env: "OCR_CLOUD_PROCESSOR_ID"
+      # Refuses to run unless config/pdp.yaml permits external PII processing
+      # or the redaction regions were successfully applied.
+      requires_pdp_clearance: true
+
+# -------------------------------------------------------------------------
+# Vision - exterior damage detection
+# -------------------------------------------------------------------------
+# Stage 1 (now): a vision-language model behind VisionProvider, driven by a
+# strict JSON schema encoding the damage taxonomy. Output is schema-validated;
+# anything that fails validation is rejected, not coerced.
+#
+# Stage 2 (path built now, model built later): every appraiser correction is
+# written to the label store. After roughly 3-6 months that store is the
+# training set for a supervised detector which swaps in here. Whether labelled
+# historical data already exists is OPEN_ITEMS.md #2.
+# -------------------------------------------------------------------------
+
+vision:
+  provider: stub                 # stub | vlm | yolo
+  persist_inference: true
+  # Model version and prompt hash are recorded on every detection so a grade
+  # can be reproduced exactly, and so a prompt change is visible as a
+  # discontinuity in the data rather than an unexplained drift.
+  record_model_version: true
+  record_prompt_hash: true
+  timeout_seconds: 120
+  max_retries: 1
+
+  providers:
+    stub:
+      fixture_dir: "seed/fixtures/vision"
+      seed: 20260101
+
+    vlm:
+      model_env: "VISION_VLM_MODEL"
+      api_key_env: "VISION_VLM_API_KEY"
+      prompt_file: "packages/ml/prompts/damage_detection_v1.md"
+      schema_file: "packages/ml/schemas/damage_detection_v1.json"
+      # One call per exterior angle rather than one call for the whole set:
+      # per-image calls keep the response schema small and make it possible to
+      # attribute a detection to a source photo, which the label store needs.
+      per_image_calls: true
+      temperature: 0.0
+      max_output_tokens: 4096
+      # Schema validation failures are retried once with a repair prompt, then
+      # the inference is marked failed. Never partially parsed.
+      on_schema_violation: retry_then_fail
+
+    yolo:
+      # Stage 2 placeholder. Not implemented - the swap point exists so the
+      # change is a config edit plus a class, not a refactor.
+      weights_path_env: "VISION_YOLO_WEIGHTS"
+      confidence_threshold: 0.35
+      iou_threshold: 0.45
+      implemented: false
+
+# -------------------------------------------------------------------------
+# Label store (§7.3 Stage 2)
+# -------------------------------------------------------------------------
+
+label_store:
+  enabled: true
+  # Which appraiser actions become training labels.
+  capture_actions: [confirm, edit, delete, add]
+  # A confirmation is a positive label; deletions are hard negatives. Both are
+  # valuable and both are kept.
+  keep_negatives: true
+  export_format: coco            # coco | yolo | jsonl
+  export_dir: "packages/ml/labels/export"
+  # Minimum corrections before an export is considered worth training on.
+  min_labels_for_export: 2000
+
+# -------------------------------------------------------------------------
+# New-car price ingestion (§6.2)
+# -------------------------------------------------------------------------
+# CSV import is the guaranteed fallback AND the default in CI. Web adapters
+# are opt-in per environment.
+#
+# Scraping third-party sites may violate their terms of service and is
+# operationally fragile. The adapter interface exists so this can be replaced
+# with a licensed feed without touching the pricing model. That is a
+# commercial decision for Caready - see docs/OPEN_ITEMS.md #3.
+# -------------------------------------------------------------------------
+
+price_ingestion:
+  adapter: csv                   # csv | web
+  # Snapshot every fetch. Prices are a time series; a row is never overwritten.
+  snapshot_every_fetch: true
+
+  adapters:
+    csv:
+      import_dir: "seed/otr_imports"
+      # A malformed import fails the whole batch rather than partially loading.
+      atomic_batch: true
+
+    web:
+      # Selectors live here, not in code, so a site redesign is a config edit.
+      selector_file: "config/price_selectors.yaml"
+      respect_robots_txt: true   # do not change this to false
+      user_agent: "CareadyPriceBot/1.0 (+https://caready.example/bot; ops@caready.example)"
+      per_domain_rate_limit_rps: 0.2
+      per_domain_concurrency: 1
+      use_conditional_requests: true   # If-None-Match / If-Modified-Since
+      cache_dir: ".cache/price_ingestion"
+      timeout_seconds: 30
+      # Adapter breakage must fail loudly. Returning stale data silently is
+      # the failure mode that corrupts the pricing model without anyone
+      # noticing, so a selector yielding nothing is an alert, not a zero.
+      on_zero_results: alert_and_fail
+      on_selector_miss: alert_and_fail
+      min_expected_rows_per_run: 50
+      alert_channel_env: "PRICE_INGESTION_ALERT_WEBHOOK"

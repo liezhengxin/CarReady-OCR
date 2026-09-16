@@ -1,0 +1,107 @@
+[project]
+name = "caready-api"
+version = "0.1.0"
+description = "Caready vehicle inspection and auction base price API"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "pydantic==2.10.5",
+    "pydantic-settings==2.7.1",
+    "email-validator==2.2.0",
+    "python-multipart==0.0.20",
+
+    # database
+    "SQLAlchemy==2.0.37",
+    "alembic==1.14.1",
+    "psycopg[binary,pool]==3.2.4",
+
+    # auth and crypto
+    "PyJWT==2.10.1",
+    "argon2-cffi==23.1.0",
+    "cryptography==44.0.0",
+
+    # queue
+    "redis==5.2.1",
+    "rq==2.1.0",
+
+    # object storage
+    "boto3==1.36.3",
+
+    # observability
+    "structlog==24.4.0",
+
+    # config and matching
+    "PyYAML==6.0.2",
+    "rapidfuzz==3.11.0",
+
+    # image handling for quality gate and perceptual hashing
+    "Pillow==11.1.0",
+    "ImageHash==4.3.1",
+    "numpy==2.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "ruff==0.9.2",
+    "mypy==1.14.1",
+    "types-PyYAML==6.0.12.20241230",
+    "freezegun==1.5.1",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "ANN", "S", "BLE", "DTZ"]
+ignore = [
+    "ANN101",  # missing type annotation for self
+    "ANN102",  # missing type annotation for cls
+    "ANN401",  # Any is legitimate for JSONB payloads and provider responses
+    "B008",    # FastAPI Depends() in defaults is the documented idiom
+    "S101",    # assert is fine in tests, and the test glob below re-permits it
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ANN", "S105", "S106"]
+"alembic/env.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# SQLAlchemy 2.0 typing is good but not complete; these two would otherwise
+# generate noise on every mapped_column.
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["rq.*", "imagehash.*", "boto3.*", "botocore.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: requires a live database (deselect with -m 'not integration')",
+]
+filterwarnings = ["error::DeprecationWarning:app.*"]

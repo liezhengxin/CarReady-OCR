@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Safe-area padding for notched devices - inspectors use phones in the
+       yard, and a capture button under the home indicator is unusable. */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* Capture targets are sized for gloved thumbs in daylight, not for a mouse. */
+  button,
+  [role='button'] {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}

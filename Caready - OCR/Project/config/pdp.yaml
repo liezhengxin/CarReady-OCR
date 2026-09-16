@@ -1,0 +1,188 @@
+# =========================================================================
+# DATA PROTECTION CONFIGURATION - UU PDP No. 27/2022 (§10)
+# =========================================================================
+# Built in from M2, not retrofitted. This file drives:
+#   - schema-level PII classification (models declare `pii=True` and reference
+#     a class here)
+#   - default masking in list and detail views
+#   - the access audit trail on unmasking
+#   - the automated retention purge job
+#   - redaction before any third-party ML/OCR call
+#
+# Legal-basis mapping and the retention justification narrative live in
+# docs/PDP.md. This file is the machine-readable half.
+#
+# Retention period and its legal basis are UNRESOLVED - see
+# docs/OPEN_ITEMS.md #7. The values below are conservative placeholders.
+# =========================================================================
+
+version: "0.1.0"
+regulation: "UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi"
+status: PLACEHOLDER_RETENTION
+
+# -------------------------------------------------------------------------
+# PII classification
+# -------------------------------------------------------------------------
+#   general   - personal data under Art. 4(2)
+#   specific  - specific personal data under Art. 4(3), stricter handling
+# -------------------------------------------------------------------------
+
+classes:
+  general:
+    encrypt_at_rest: true
+    mask_by_default: true
+    unmask_requires_capability: "pii:unmask"
+    log_access: true
+  specific:
+    encrypt_at_rest: true
+    mask_by_default: true
+    unmask_requires_capability: "pii:unmask"
+    log_access: true
+    # Specific personal data additionally requires a typed justification on
+    # every unmask, not merely an audit record.
+    unmask_requires_justification: true
+
+# -------------------------------------------------------------------------
+# Field-level classification
+# -------------------------------------------------------------------------
+# `masking` determines the redacted rendering shown by default.
+# -------------------------------------------------------------------------
+
+fields:
+  unit_stnk_data.nama_pemilik:
+    class: general
+    masking: name          # "Budi Santoso" -> "B**** S******"
+    purpose: "Verifikasi identitas pemilik kendaraan pada proses lelang"
+  unit_stnk_data.alamat:
+    class: general
+    masking: address       # keep kelurahan/kota, redact street and number
+    purpose: "Verifikasi domisili dan wilayah registrasi kendaraan"
+  unit_stnk_data.nik:
+    class: specific
+    masking: full          # never partially revealed
+    purpose: "Verifikasi identitas - dikumpulkan hanya bila tercantum di STNK"
+    # NIK is not always present on an STNK. When absent, do not infer it.
+    optional: true
+  unit_stnk_data.nomor_registrasi:
+    # A plate number is identifying in combination with other fields. Treated
+    # as PII for masking purposes but not encrypted, because it is a primary
+    # operational lookup key.
+    class: general
+    masking: plate         # "B 1234 XYZ" -> "B 1*** XYZ"
+    encrypt_at_rest: false
+    purpose: "Identifikasi unit kendaraan dalam operasional lelang"
+  unit_stnk_data.nomor_bpkb:
+    class: general
+    masking: tail4
+    purpose: "Verifikasi dokumen kepemilikan"
+  photos.gps_lat:
+    class: general
+    masking: coarse        # rounded to ~1km
+    purpose: "Verifikasi lokasi inspeksi"
+  photos.gps_lon:
+    class: general
+    masking: coarse
+    purpose: "Verifikasi lokasi inspeksi"
+
+# -------------------------------------------------------------------------
+# Third-party processing (§10, last bullet)
+# -------------------------------------------------------------------------
+# Raw PII is NOT sent to external ML/OCR providers unless explicitly enabled
+# AND a DPA reference is recorded. Default posture: redact before the call
+# wherever technically possible.
+#
+# For STNK OCR, full redaction before extraction is not possible - the
+# provider must see the document to read it. The mitigation is therefore
+# provider choice (local PaddleOCR keeps the image on our infrastructure) plus
+# region-masking for providers that support pre-crop.
+# -------------------------------------------------------------------------
+
+third_party:
+  allow_raw_pii_to_external_providers: false
+  dpa_reference: null            # must be set before the flag above is enabled
+  # When an external provider is used and the flag is off, these image regions
+  # are masked before upload. Region coordinates are resolved by the STNK
+  # template matcher; if the template does not match, the call is refused
+  # rather than sent unmasked.
+  redact_regions_before_upload:
+    STNK_FRONT: [nama_pemilik, alamat, nik]
+  on_template_match_failure: refuse_external_call
+  # The local provider has no such restriction - nothing leaves our network.
+  local_providers_exempt: true
+  local_provider_names: [paddle, stub]
+
+# -------------------------------------------------------------------------
+# Retention
+# -------------------------------------------------------------------------
+#   *** PLACEHOLDER. See docs/OPEN_ITEMS.md #7. ***
+#
+# The retention clock starts at the terminal event named in `clock_starts_at`.
+# The purge job runs on `purge_cron` and writes an audit record per purged
+# entity. Purging is destructive and irreversible by design.
+# -------------------------------------------------------------------------
+
+retention:
+  enabled: true
+  dry_run: true                  # set false only after Caready signs off
+  purge_cron: "0 2 * * *"
+  policies:
+    - entity: unit_stnk_data
+      pii_only: true             # purge PII columns, keep the non-PII unit
+      clock_starts_at: unit_terminal_status_at
+      retain_days: 1095          # 3 years - PLACEHOLDER
+      legal_basis: "PLACEHOLDER - lihat docs/PDP.md, belum dikonfirmasi"
+    - entity: photos
+      # Photos of documents contain PII in the image itself; the original is
+      # purged while the derivative used for audit thumbnails is retained only
+      # if it contains no document.
+      pii_only: false
+      applies_to_capture_types: [INTAKE_STNK_FRONT]
+      clock_starts_at: unit_terminal_status_at
+      retain_days: 1095          # PLACEHOLDER
+      legal_basis: "PLACEHOLDER"
+    - entity: pii_access_log
+      pii_only: false
+      clock_starts_at: created_at
+      retain_days: 1825          # 5 years - access logs outlive the data
+      legal_basis: "Akuntabilitas pemrosesan"
+    - entity: ocr_extractions
+      # Raw provider responses contain the extracted PII verbatim.
+      pii_only: true
+      clock_starts_at: unit_terminal_status_at
+      retain_days: 1095          # PLACEHOLDER
+      legal_basis: "PLACEHOLDER"
+
+  # Records under an active legal hold are never purged regardless of age.
+  respect_legal_hold: true
+
+# -------------------------------------------------------------------------
+# Data subject rights
+# -------------------------------------------------------------------------
+
+data_subject_rights:
+  export_enabled: true
+  deletion_enabled: true
+  # Deletion removes PII but retains the de-identified pricing record, which
+  # is necessary for model integrity and is permitted where the retained data
+  # is no longer personal data. This reasoning must be confirmed - it is part
+  # of OPEN_ITEMS.md #7.
+  deletion_mode: pii_erasure_retain_deidentified
+  # Requests are resolved by plate number or owner name plus unit reference.
+  lookup_keys: [nomor_registrasi, nomor_rangka, unit_code]
+  sla_days: 30
+  # Every export and deletion writes an audit record and requires the
+  # pii:unmask capability plus a typed justification.
+  requires_capability: "pii:unmask"
+  requires_justification: true
+
+# -------------------------------------------------------------------------
+# Access controls on photos
+# -------------------------------------------------------------------------
+
+object_storage:
+  # Photos are never served from a public bucket. Access is via short-lived
+  # signed URLs issued per request after a capability check.
+  signed_url_ttl_seconds: 300
+  # Signed URL issuance for a document capture writes a PII access record.
+  log_access_for_capture_types: [INTAKE_STNK_FRONT]
+  bucket_public_access: false

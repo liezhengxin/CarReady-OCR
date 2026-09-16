@@ -1,0 +1,245 @@
+# =========================================================================
+# ICR CROSS-CHECK RULES (§5.4)
+# =========================================================================
+# The fraud layer. Every check emits a typed result with a verdict and a
+# severity. Nothing here auto-corrects data - a check can only flag.
+#
+# severity BLOCKER stops auto-progression through the state machine and
+# forces appraiser action (§8.6).
+# =========================================================================
+
+version: "1.0.0"
+
+# -------------------------------------------------------------------------
+# Character normalisation applied before ANY string comparison
+# -------------------------------------------------------------------------
+# ISO 3779 excludes I, O and Q from VIN alphabets precisely because they are
+# confusable with 1 and 0. OCR makes the same confusion. We normalise both
+# sides of every comparison and RECORD that normalisation was applied, so a
+# match that only holds after normalisation is distinguishable in the audit
+# trail from an exact match.
+# -------------------------------------------------------------------------
+
+normalisation:
+  uppercase: true
+  strip_whitespace: true
+  strip_characters: ["-", ".", "/", "\\", "*", "#", " "]
+  character_map:
+    "O": "0"
+    "I": "1"
+    "Q": "0"
+    # Common OCR confusions beyond the ISO set. Applied to both sides.
+    "|": "1"
+    "l": "1"
+    "S": "5"   # only when `aggressive_map` is enabled below
+    "B": "8"
+    "Z": "2"
+  # The S/B/Z substitutions materially raise false-match rate. Off by default;
+  # when enabled, a match relying on them is downgraded to NEEDS_REVIEW.
+  aggressive_map: false
+  record_normalisation_applied: true
+
+# -------------------------------------------------------------------------
+# VIN plate vs STNK nomor_rangka
+# -------------------------------------------------------------------------
+
+vin_match:
+  enabled: true
+  # Levenshtein distance on the normalised strings.
+  exact_match_verdict: PASS
+  fuzzy_max_distance: 2          # <= this, and > 0  -> NEEDS_REVIEW
+  fuzzy_verdict: NEEDS_REVIEW
+  mismatch_verdict: MISMATCH
+  severity:
+    PASS: INFO
+    NEEDS_REVIEW: WARNING
+    MISMATCH: BLOCKER
+  # If either side is missing or unreadable we do not pass by default.
+  on_missing_side: NEEDS_REVIEW
+  # A match that only holds after aggressive normalisation never returns PASS.
+  downgrade_if_aggressive_normalisation: true
+
+# -------------------------------------------------------------------------
+# Engine number plate vs STNK nomor_mesin
+# -------------------------------------------------------------------------
+
+engine_no_match:
+  enabled: true
+  exact_match_verdict: PASS
+  fuzzy_max_distance: 2
+  fuzzy_verdict: NEEDS_REVIEW
+  mismatch_verdict: MISMATCH
+  severity:
+    PASS: INFO
+    NEEDS_REVIEW: WARNING
+    MISMATCH: BLOCKER
+  on_missing_side: NEEDS_REVIEW
+
+# -------------------------------------------------------------------------
+# Tax status - derived from the STNK tax panel ONLY
+# -------------------------------------------------------------------------
+# There is no Samsat integration. `berlaku_sampai` on the photographed tax
+# panel is the sole input. If it is unreadable the status is UNKNOWN, never
+# assumed ACTIVE.
+# -------------------------------------------------------------------------
+
+tax_status:
+  enabled: true
+  expiring_soon_days: 30
+  # Buckets are evaluated against (berlaku_sampai - reference_date) in days.
+  # reference_date is the server-side capture date, never a client date.
+  severity:
+    ACTIVE: INFO
+    EXPIRING_SOON: INFO
+    EXPIRED_LT_12M: WARNING
+    # Expired >= 12 months triggers progressive penalties and, past a point,
+    # re-registration. Material cost item - surfaced prominently in the UI and
+    # fed to the pricing model as a feature.
+    EXPIRED_GTE_12M: WARNING
+    UNKNOWN: WARNING
+  # Whether an expired-tax unit may auto-progress. Currently permitted (it is
+  # a price input, not a fraud signal) but flagged for approver attention.
+  blocks_auto_progression: false
+
+# -------------------------------------------------------------------------
+# Odometer sanity
+# -------------------------------------------------------------------------
+# implied_km_per_year = odometer_km / max(1, current_year - tahun_pembuatan)
+#
+# A LOW reading on an old unit is the rollback signal, and is treated as the
+# more serious of the two directions. A high reading is a valuation input, not
+# a fraud signal.
+# -------------------------------------------------------------------------
+
+odometer_sanity:
+  enabled: true
+  min_km_per_year: 2000
+  max_km_per_year: 40000
+  # Vehicles under this age have too little elapsed time for the ratio to be
+  # meaningful; the check is skipped and reported NOT_APPLICABLE.
+  min_vehicle_age_years: 1
+  severity:
+    below_min: WARNING       # rollback candidate
+    above_max: INFO          # high-mileage, a price input not a fraud flag
+  # Below this implied km/year on a vehicle older than `hard_flag_age_years`,
+  # escalate to BLOCKER - this is the classic tampering profile.
+  hard_flag_below_km_per_year: 1000
+  hard_flag_age_years: 5
+  hard_flag_severity: BLOCKER
+  # Absolute bounds - anything outside is an OCR failure, not a real reading.
+  plausible_range_km: { min: 0, max: 1000000 }
+
+# -------------------------------------------------------------------------
+# Photo reuse detection
+# -------------------------------------------------------------------------
+# Perceptual hash collision against every prior photo in the system. Catches
+# an inspector re-photographing a previous unit's documents.
+# -------------------------------------------------------------------------
+
+photo_reuse:
+  enabled: true
+  algorithm: phash            # phash | dhash | ahash
+  hash_size: 16               # 256-bit hash
+  # Hamming distance at or below this is treated as the same image.
+  max_hamming_distance: 8
+  # Photos of the SAME unit are expected to be similar; only cross-unit
+  # collisions are flagged.
+  ignore_same_unit: true
+  severity: BLOCKER
+  # Near-duplicates within this window are more likely to be genuine reuse
+  # than coincidence. Outside it, still flagged but as WARNING.
+  recent_window_days: 180
+  severity_outside_window: WARNING
+
+# -------------------------------------------------------------------------
+# Per-field OCR confidence
+# -------------------------------------------------------------------------
+# Any field below its threshold routes the unit to the human verification
+# queue. Fields that feed pricing directly have higher thresholds than
+# cosmetic ones.
+# -------------------------------------------------------------------------
+
+field_confidence:
+  enabled: true
+  default_threshold: 0.80
+  thresholds:
+    # Identity and fraud-critical
+    nomor_rangka: 0.92
+    nomor_mesin: 0.92
+    nomor_registrasi: 0.88
+    # Pricing-critical
+    tahun_pembuatan: 0.90
+    odometer_km: 0.90
+    merk: 0.85
+    tipe: 0.85
+    model: 0.85
+    isi_silinder: 0.80
+    berlaku_sampai: 0.88
+    # Secondary
+    warna: 0.70
+    bahan_bakar: 0.70
+    jenis: 0.70
+    warna_tnkb: 0.65
+    tahun_registrasi: 0.75
+    nomor_bpkb: 0.75
+    kode_lokasi: 0.65
+    # PII - low threshold is deliberate; these are not used for pricing and we
+    # would rather store a low-confidence value flagged for review than prompt
+    # an operator to re-read a photo containing personal data.
+    nama_pemilik: 0.60
+    alamat: 0.60
+  severity: WARNING
+  # If more than this fraction of extracted fields fall below threshold the
+  # whole extraction is suspect - likely a bad photo, not bad luck.
+  whole_extraction_suspect_ratio: 0.40
+  whole_extraction_severity: BLOCKER
+
+# -------------------------------------------------------------------------
+# Plate condition (§5.5)
+# -------------------------------------------------------------------------
+
+plate_condition:
+  enabled: true
+  min_confidence: 0.55
+  severity:
+    CLEAN: INFO
+    RUST_LIGHT: INFO
+    RUST_HEAVY: WARNING
+    REPAINTED: WARNING
+    SCRATCHED_OVER: WARNING
+    # Fraud signal, not cosmetic. Hard-blocks auto-approval and forces
+    # appraiser review. Do not downgrade this without a documented decision.
+    TAMPERED_SUSPECTED: BLOCKER
+    ILLEGIBLE: WARNING
+  # Below min_confidence the classification is not trusted; the check returns
+  # NEEDS_REVIEW rather than the low-confidence label.
+  low_confidence_verdict: NEEDS_REVIEW
+
+# -------------------------------------------------------------------------
+# VIN decode agreement (optional enrichment layer only - §5.3)
+# -------------------------------------------------------------------------
+# STNK is authoritative for brand/type/model/year. VIN decoding is a
+# cross-check that can raise a flag and can NEVER overwrite an STNK value.
+#
+# Rationale: there is no public VIN decoding database for the Indonesian
+# market equivalent to NHTSA vPIC, and many domestic CKD units do not follow
+# ISO 3779 conventions for the model-year character. A VIN-primary design
+# produces a low decode accuracy that cannot be repaired downstream.
+# -------------------------------------------------------------------------
+
+vin_decode:
+  enabled: true
+  never_overwrite_stnk: true      # do not change this to false
+  # WMI (chars 1-3) lookup - see config/vin_wmi.yaml
+  wmi_lookup_enabled: true
+  # VDS -> variant mapping is learned empirically from Caready's own history,
+  # not assumed from the standard. Only applied above a support threshold.
+  vds_mapping_enabled: true
+  vds_min_support_count: 25
+  vds_min_purity: 0.85            # share of supporting rows agreeing on variant
+  # Model-year character (position 10) is unreliable for domestic CKD units.
+  decode_model_year: false
+  severity:
+    agrees: INFO
+    disagrees: WARNING
+    undecodable: INFO             # expected for many domestic units - not news

@@ -1,0 +1,122 @@
+# =========================================================================
+# WMI LOOKUP TABLE (VIN characters 1-3)
+# =========================================================================
+# Used by the OPTIONAL VIN enrichment layer only (§5.3).
+#
+# The STNK is authoritative for brand / type / model / year. This table can
+# raise a disagreement flag. It can never overwrite an STNK value.
+#
+# Coverage here is partial by design. Indonesian-market VIN practice is not
+# uniform: many domestic CKD units use manufacturer-local schemes, and the
+# ISO 3779 model-year character is unreliable. An undecodable VIN is an
+# expected outcome, reported as INFO, not an error.
+#
+# Entries are seeded from publicly observable manufacturer prefixes and MUST
+# be verified against Caready's own historical data before being relied on.
+# `verified` marks which rows have been checked against real units.
+# =========================================================================
+
+version: "0.1.0"
+status: SEEDED_UNVERIFIED
+
+# Positions within the 17-character VIN, 1-indexed and inclusive.
+structure:
+  wmi: [1, 3]
+  vds: [4, 9]
+  check_digit: 9
+  model_year_char: 10
+  plant_char: 11
+  serial: [12, 17]
+  # Check-digit validation (position 9) is a North-American requirement and is
+  # not consistently applied by Asian manufacturers. Computed and recorded for
+  # information, never used to reject a VIN.
+  validate_check_digit: false
+  # See config/crosschecks.yaml vin_decode.decode_model_year - disabled.
+  model_year_map_enabled: false
+
+# -------------------------------------------------------------------------
+# WMI entries
+# -------------------------------------------------------------------------
+#   wmi        three-character prefix
+#   brand      canonical brand name, must resolve against the catalog
+#   country    country of manufacture
+#   verified   has this prefix been confirmed against Caready historical data
+# -------------------------------------------------------------------------
+
+wmi:
+  # --- Indonesian assembly ---
+  - { wmi: "MHF", brand: "Toyota",     country: "ID", verified: false }
+  - { wmi: "MHK", brand: "Daihatsu",   country: "ID", verified: false }
+  - { wmi: "MHR", brand: "Honda",      country: "ID", verified: false }
+  - { wmi: "MHY", brand: "Suzuki",     country: "ID", verified: false }
+  - { wmi: "MHM", brand: "Mitsubishi", country: "ID", verified: false }
+  - { wmi: "MHL", brand: "Isuzu",      country: "ID", verified: false }
+  - { wmi: "MJB", brand: "Wuling",     country: "ID", verified: false }
+  - { wmi: "MJE", brand: "Hyundai",    country: "ID", verified: false }
+
+  # --- Japanese assembly ---
+  - { wmi: "JTD", brand: "Toyota",     country: "JP", verified: false }
+  - { wmi: "JTE", brand: "Toyota",     country: "JP", verified: false }
+  - { wmi: "JHM", brand: "Honda",      country: "JP", verified: false }
+  - { wmi: "JHL", brand: "Honda",      country: "JP", verified: false }
+  - { wmi: "JN1", brand: "Nissan",     country: "JP", verified: false }
+  - { wmi: "JS2", brand: "Suzuki",     country: "JP", verified: false }
+  - { wmi: "JMB", brand: "Mitsubishi", country: "JP", verified: false }
+  - { wmi: "JF1", brand: "Subaru",     country: "JP", verified: false }
+  - { wmi: "JM1", brand: "Mazda",      country: "JP", verified: false }
+
+  # --- Thai assembly (significant source for pickups and some MPVs) ---
+  - { wmi: "MR0", brand: "Toyota",     country: "TH", verified: false }
+  - { wmi: "MRH", brand: "Honda",      country: "TH", verified: false }
+  - { wmi: "MMB", brand: "Mitsubishi", country: "TH", verified: false }
+  - { wmi: "MM8", brand: "Mazda",      country: "TH", verified: false }
+  - { wmi: "MPA", brand: "Isuzu",      country: "TH", verified: false }
+  - { wmi: "MP1", brand: "Isuzu",      country: "TH", verified: false }
+
+  # --- Korean assembly ---
+  - { wmi: "KMH", brand: "Hyundai",    country: "KR", verified: false }
+  - { wmi: "KNA", brand: "Kia",        country: "KR", verified: false }
+  - { wmi: "KNE", brand: "Kia",        country: "KR", verified: false }
+
+  # --- Indian assembly ---
+  - { wmi: "MA3", brand: "Suzuki",     country: "IN", verified: false }
+  - { wmi: "MAK", brand: "Honda",      country: "IN", verified: false }
+
+  # --- European ---
+  - { wmi: "WBA", brand: "BMW",        country: "DE", verified: false }
+  - { wmi: "WDD", brand: "Mercedes-Benz", country: "DE", verified: false }
+  - { wmi: "WVW", brand: "Volkswagen", country: "DE", verified: false }
+  - { wmi: "VF1", brand: "Renault",    country: "FR", verified: false }
+
+  # --- Chinese ---
+  - { wmi: "LSG", brand: "Wuling",     country: "CN", verified: false }
+  - { wmi: "LVS", brand: "Ford",       country: "CN", verified: false }
+  - { wmi: "LGX", brand: "BYD",        country: "CN", verified: false }
+  - { wmi: "LB3", brand: "Chery",      country: "CN", verified: false }
+
+# -------------------------------------------------------------------------
+# VDS -> variant mapping
+# -------------------------------------------------------------------------
+# NOT seeded from a standards assumption. Built EMPIRICALLY from Caready's own
+# historical data: for each (wmi, vds) prefix observed, record which variant
+# the appraiser resolved the unit to, and count support.
+#
+# The mapping is applied only when support and purity clear the thresholds in
+# config/crosschecks.yaml (vin_decode.vds_min_support_count / vds_min_purity).
+#
+# Rows live in the `vds_variant_map` table, not in this file. This block only
+# configures how that table is built and consumed.
+# -------------------------------------------------------------------------
+
+vds_mapping:
+  # How many leading VDS characters form the key. Shorter = more support per
+  # key but coarser; 4 is a reasonable starting point for Asian schemes where
+  # the trailing VDS characters often encode options rather than trim.
+  prefix_length: 4
+  rebuild_cron: "0 4 * * 0"
+  # A key whose supporting rows disagree above this rate is not applied at all.
+  max_disagreement_rate: 0.15
+  # Only historical units whose variant was resolved by a human contribute -
+  # otherwise an auto-matched error propagates into the decoder that is meant
+  # to catch it.
+  contributing_resolution_methods: [manual]

@@ -1,0 +1,118 @@
+# =========================================================================
+# COLD-START DEDUCTION TABLE
+# =========================================================================
+#
+#   *** THIS TABLE IS A FALLBACK, NOT THE PRICING MECHANISM. ***
+#
+# The production path is: feed actual condition into the model as features,
+# predict twice (reference condition vs actual condition), and present the
+# DIFFERENCE as the deduction (§8.4). That keeps the number explainable
+# without being arbitrary.
+#
+# This table is used ONLY when there is insufficient graded historical data
+# for the model to have learned a condition effect - i.e. data sufficiency
+# tier COLD_START. Its use is:
+#   - recorded on the price result (`coldstart_deduction_used: true`)
+#   - shown as an explicit warning in the dashboard
+#   - a one-level confidence degradation
+#
+# It MUST be recalibrated against realised prices as graded history
+# accumulates. `calibration` below tracks that.
+#
+# The percentages are placeholders derived from the placeholder grading scale
+# in config/grading.yaml. They are not Caready's numbers.
+# See docs/OPEN_ITEMS.md items #1 and #5.
+# =========================================================================
+
+version: "0.1.0-placeholder"
+status: PLACEHOLDER
+
+calibration:
+  last_calibrated_at: null
+  calibrated_against_n_units: 0
+  # Once this many graded units with realised prices exist, the table should
+  # be recalibrated or retired in favour of the model-difference method.
+  recalibrate_at_n_units: 300
+  notes: >-
+    Never calibrated. Values below are engineering placeholders chosen to be
+    directionally sensible, not empirically derived.
+
+# -------------------------------------------------------------------------
+# Base deduction by grade, as a share of AMP
+# -------------------------------------------------------------------------
+# Labels must match config/grading.yaml grade_bands. If the grading scale
+# changes, this table changes with it.
+# -------------------------------------------------------------------------
+
+grade_deduction_pct:
+  A: 0.02
+  B: 0.06
+  C: 0.13
+  D: 0.24
+  E: 0.40
+
+# -------------------------------------------------------------------------
+# Additive surcharges
+# -------------------------------------------------------------------------
+# Applied on top of the grade deduction for signals that the grade band
+# under-weights. Expressed as additional share of AMP.
+#
+# celah_panel carries a surcharge even though it already drives a grade cap:
+# a buyer discounts a repaired-collision car beyond its cosmetic grade.
+# -------------------------------------------------------------------------
+
+surcharge_pct:
+  celah_panel_present: 0.05
+  celah_panel_severe: 0.09
+  rust_heavy_present: 0.04
+  repaint_multi_panel: 0.03
+  structural_panel_severe: 0.06
+  missing_component: 0.02
+
+# -------------------------------------------------------------------------
+# Tax status adjustment
+# -------------------------------------------------------------------------
+# Expired tax is a cash cost to the buyer (penalties plus, past 2 years,
+# re-registration). Deducted as a flat IDR amount, not a percentage, because
+# the cost does not scale with vehicle value in the same way.
+# -------------------------------------------------------------------------
+
+tax_deduction_idr:
+  ACTIVE: 0
+  EXPIRING_SOON: 0
+  EXPIRED_LT_12M: 1500000
+  EXPIRED_GTE_12M: 4500000
+  UNKNOWN: 1500000
+
+# -------------------------------------------------------------------------
+# Non-visual checklist adjustment (§8.4)
+# -------------------------------------------------------------------------
+# These items are invisible to exterior AI grading. Without them, mechanically
+# damaged units are systematically overpriced.
+#
+# A flagged item does not merely deduct - it blocks auto-approval and forces
+# appraiser action. The figures below are what the system shows the appraiser
+# as a starting point, not a final answer.
+# -------------------------------------------------------------------------
+
+non_visual_deduction_pct:
+  flood_indication: 0.35
+  chassis_repair: 0.25
+  engine_condition: 0.15
+  transmission_condition: 0.12
+  odometer_tampering: 0.20
+  airbag_deployed: 0.10
+  document_completeness: 0.05
+
+# -------------------------------------------------------------------------
+# Caps
+# -------------------------------------------------------------------------
+# Deductions are additive but capped, otherwise a unit with several flags
+# arrives at a negative or nonsensical price.
+# -------------------------------------------------------------------------
+
+caps:
+  max_total_deduction_pct: 0.65
+  # Below this share of AMP the system refuses to publish a base price and
+  # requires the appraiser to set one manually with a reason.
+  refuse_below_share_of_amp: 0.30

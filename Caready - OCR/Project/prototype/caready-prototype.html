@@ -1,0 +1,1873 @@
+<title>Caready Inspeksi Lelang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+/* ==========================================================================
+   Tokens. Light palette lives on bare :root so the un-stamped (system
+   default) document always resolves. Dark redefines tokens only.
+   ========================================================================== */
+:root{
+  /* Ground and surface are both pure white, so separation comes from borders
+     and a light fill rather than from a tinted page. Ink and muted are pushed
+     darker than usual to hold contrast against that white. */
+  --ground:#FFFFFF;
+  --surface:#FFFFFF;
+  --surface-2:#F0F2F1;
+  --line:#D7DBD8;
+  --line-strong:#98A19B;
+  --ink:#0B0E10;
+  --ink-2:#272D31;
+  --muted:#4C555A;
+  --accent:#0A4F5A;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E2EFF1;
+  --accent-line:#8CBDC5;
+  --ok:#22643F;
+  --ok-soft:#DBEDE2;
+  --warn:#835508;
+  --warn-soft:#F8E9CE;
+  --blocker:#93221A;
+  --blocker-soft:#FADEDA;
+  --shadow:0 1px 2px rgba(11,14,16,.07),0 4px 14px rgba(11,14,16,.05);
+
+  --step--1:.78rem;
+  --step-0:.9rem;
+  --step-1:1.05rem;
+  --step-2:1.35rem;
+  --step-3:1.8rem;
+  --step-4:2.4rem;
+
+  --sans:"Public Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Archivo","Public Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121618;
+    --surface:#1A1F22;
+    --surface-2:#232A2D;
+    --line:#2E3639;
+    --line-strong:#414A4E;
+    --ink:#E9ECEA;
+    --ink-2:#C3CAC8;
+    --muted:#8E9A9E;
+    --accent:#4FA6B3;
+    --accent-ink:#0B2226;
+    --accent-soft:#17343A;
+    --accent-line:#2C5A63;
+    --ok:#6FBF90;
+    --ok-soft:#17301F;
+    --warn:#E0AB53;
+    --warn-soft:#332413;
+    --blocker:#EE8279;
+    --blocker-soft:#3A1A17;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121618;
+  --surface:#1A1F22;
+  --surface-2:#232A2D;
+  --line:#2E3639;
+  --line-strong:#414A4E;
+  --ink:#E9ECEA;
+  --ink-2:#C3CAC8;
+  --muted:#8E9A9E;
+  --accent:#4FA6B3;
+  --accent-ink:#0B2226;
+  --accent-soft:#17343A;
+  --accent-line:#2C5A63;
+  --ok:#6FBF90;
+  --ok-soft:#17301F;
+  --warn:#E0AB53;
+  --warn-soft:#332413;
+  --blocker:#EE8279;
+  --blocker-soft:#3A1A17;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:var(--step-0);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.012em}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:.86em;letter-spacing:-.02em}
+
+/* ---------- App bar ---------- */
+.appbar{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:40;
+  background:var(--surface);border-bottom:1px solid var(--line);
+}
+.appbar-in{
+  max-width:1400px;margin:0 auto;padding:.55rem 16px;
+  display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+}
+.logo{font-family:var(--display);font-weight:700;font-size:var(--step-1);letter-spacing:-.02em;white-space:nowrap}
+.logo em{font-style:normal;color:var(--accent)}
+.tabs{display:flex;gap:.15rem;background:var(--surface-2);padding:.18rem;border-radius:7px}
+.tab{
+  border:0;background:transparent;padding:.34rem .7rem;border-radius:5px;cursor:pointer;
+  font-size:var(--step--1);font-weight:600;color:var(--muted);white-space:nowrap;
+}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.spacer{flex:1 1 auto;min-width:0}
+.ctl{display:flex;align-items:center;gap:.4rem}
+.ctl label{font-size:var(--step--1);color:var(--muted);font-weight:500;white-space:nowrap}
+select,input[type="number"]{
+  font:inherit;font-size:var(--step--1);padding:.3rem .45rem;border:1px solid var(--line-strong);
+  border-radius:5px;background:var(--surface);color:var(--ink);
+}
+.icon-btn{
+  border:1px solid var(--line-strong);background:var(--surface);border-radius:5px;
+  width:2rem;height:2rem;cursor:pointer;display:grid;place-items:center;font-size:.95rem;flex:none;
+}
+
+/* ---------- Shell ---------- */
+main{max-width:1400px;margin:0 auto;padding-block:1.1rem 3rem;padding-inline:16px}
+.view[hidden]{display:none!important}
+
+.eyebrow{
+  font-family:var(--display);font-size:.68rem;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);
+}
+
+/* ---------- Summary strip ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:.6rem;margin-bottom:1.1rem}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.7rem .8rem}
+.stat .v{font-family:var(--display);font-size:var(--step-3);font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.stat .k{font-size:var(--step--1);color:var(--muted);margin-top:.15rem}
+.stat.is-blocker{border-color:var(--blocker);background:var(--blocker-soft)}
+.stat.is-blocker .v{color:var(--blocker)}
+.stat.is-warn .v{color:var(--warn)}
+
+/* ---------- Two-pane ---------- */
+.pane{display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:1rem;align-items:start}
+.queue{background:var(--surface);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.queue-head{
+  padding:.6rem .8rem;border-bottom:1px solid var(--line);display:flex;
+  justify-content:space-between;align-items:center;gap:.5rem;background:var(--surface-2);
+}
+.queue-list{max-height:min(66vh,680px);overflow-y:auto}
+.row{
+  width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;
+  padding:.62rem .8rem .62rem .6rem;cursor:pointer;display:flex;gap:.55rem;align-items:flex-start;
+}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--surface-2)}
+.row[aria-current="true"]{background:var(--accent-soft)}
+.row-stripe{width:3px;align-self:stretch;border-radius:2px;background:var(--line-strong);flex:none}
+.row[data-sev="blocker"] .row-stripe{background:var(--blocker)}
+.row[data-sev="warn"] .row-stripe{background:var(--warn)}
+.row[data-sev="ok"] .row-stripe{background:var(--ok)}
+.row-main{min-width:0;flex:1}
+.row-code{font-family:var(--mono);font-size:.7rem;color:var(--muted);letter-spacing:-.01em}
+.row-name{font-weight:600;font-size:var(--step-0);line-height:1.3;margin-top:.05rem}
+.row-meta{font-size:var(--step--1);color:var(--muted);margin-top:.12rem;font-variant-numeric:tabular-nums}
+.row-tags{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem}
+
+/* ---------- Chips ---------- */
+.chip{
+  display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-weight:600;
+  padding:.1rem .38rem;border-radius:3px;border:1px solid transparent;white-space:nowrap;line-height:1.5;
+}
+.chip-ok{background:var(--ok-soft);color:var(--ok);border-color:currentColor}
+.chip-warn{background:var(--warn-soft);color:var(--warn);border-color:currentColor}
+.chip-blocker{background:var(--blocker-soft);color:var(--blocker);border-color:currentColor}
+.chip-neutral{background:var(--surface-2);color:var(--muted);border-color:var(--line-strong)}
+.chip-accent{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+
+.grade{
+  font-family:var(--display);font-weight:700;display:inline-grid;place-items:center;
+  width:1.55rem;height:1.55rem;border-radius:4px;font-size:var(--step-0);flex:none;
+  background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);
+}
+.grade[data-g="A"]{background:var(--ok-soft);color:var(--ok);border-color:currentColor}
+.grade[data-g="B"]{background:var(--ok-soft);color:var(--ok);border-color:currentColor}
+.grade[data-g="C"]{background:var(--warn-soft);color:var(--warn);border-color:currentColor}
+.grade[data-g="D"]{background:var(--blocker-soft);color:var(--blocker);border-color:currentColor}
+.grade[data-g="E"]{background:var(--blocker);color:#fff;border-color:var(--blocker)}
+
+/* ---------- Dossier ---------- */
+.dossier{display:flex;flex-direction:column;gap:.85rem;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:9px}
+.card-head{padding:.7rem .9rem;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap}
+.card-head h3{font-size:var(--step-1);font-weight:600}
+.card-body{padding:.9rem}
+.card-note{
+  padding:.55rem .9rem;background:var(--surface-2);border-top:1px solid var(--line);
+  font-size:var(--step--1);color:var(--muted);line-height:1.5;
+}
+
+.unit-hero{display:flex;gap:.9rem;align-items:flex-start;flex-wrap:wrap}
+.unit-hero h2{font-size:var(--step-2);font-weight:700;line-height:1.2}
+.unit-hero .sub{color:var(--muted);font-size:var(--step--1);margin-top:.15rem;font-variant-numeric:tabular-nums}
+
+.kv{display:grid;grid-template-columns:auto 1fr;gap:.34rem .9rem;font-size:var(--step--1)}
+.kv dt{color:var(--muted);white-space:nowrap}
+.kv dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+
+.pii{display:inline-flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.pii-val{font-family:var(--mono);font-size:.8rem}
+.pii-val[data-masked="true"]{color:var(--muted);letter-spacing:.04em}
+.mini-btn{
+  border:1px solid var(--line-strong);background:var(--surface-2);border-radius:4px;
+  padding:.05rem .32rem;font-size:.66rem;font-weight:600;cursor:pointer;color:var(--muted);white-space:nowrap;
+}
+.mini-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---------- Cross-checks ---------- */
+.checks{display:flex;flex-direction:column;gap:.5rem}
+.check{border:1px solid var(--line);border-left-width:3px;border-radius:6px;padding:.55rem .7rem}
+.check[data-sev="BLOCKER"]{border-left-color:var(--blocker);background:var(--blocker-soft)}
+.check[data-sev="WARNING"]{border-left-color:var(--warn);background:var(--warn-soft)}
+.check[data-sev="INFO"]{border-left-color:var(--ok);background:transparent}
+.check-top{display:flex;gap:.5rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.check-name{font-family:var(--display);font-size:var(--step--1);font-weight:600;letter-spacing:.02em}
+.check-msg{font-size:var(--step--1);color:var(--ink-2);margin-top:.3rem;line-height:1.5}
+
+.diff{
+  margin-top:.5rem;display:grid;grid-template-columns:auto 1fr;gap:.2rem .6rem;
+  align-items:center;font-size:var(--step--1);overflow-x:auto;
+}
+.diff-label{color:var(--muted);white-space:nowrap;font-size:.7rem}
+.diff-chars{font-family:var(--mono);font-size:.8rem;letter-spacing:.055em;white-space:nowrap}
+.diff-chars i{font-style:normal;padding:0 .04em;border-radius:2px}
+.diff-chars i[data-d="bad"]{background:var(--blocker);color:#fff;font-weight:700}
+.diff-chars i[data-d="norm"]{background:var(--warn-soft);color:var(--warn);font-weight:700;box-shadow:inset 0 -2px 0 currentColor}
+
+/* ---------- Damage table ---------- */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:var(--step--1)}
+th{
+  text-align:left;font-family:var(--display);font-size:.68rem;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);font-weight:600;
+  padding:.3rem .5rem;border-bottom:1px solid var(--line-strong);white-space:nowrap;
+}
+td{padding:.35rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tfoot td{font-weight:700;border-top:1px solid var(--line-strong);border-bottom:0;padding-top:.45rem}
+.sev{display:inline-block;width:1.1rem;text-align:center;border-radius:3px;font-weight:700;font-size:.7rem}
+.sev[data-s="1"]{background:var(--ok-soft);color:var(--ok)}
+.sev[data-s="2"]{background:var(--warn-soft);color:var(--warn)}
+.sev[data-s="3"]{background:var(--blocker-soft);color:var(--blocker)}
+
+/* ---------- Price ---------- */
+.price-stack{display:flex;flex-direction:column;gap:.1rem}
+.price-line{
+  display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding:.45rem 0;border-bottom:1px dashed var(--line);
+}
+.price-line:last-child{border-bottom:0}
+.price-line .lbl{font-size:var(--step--1);color:var(--muted)}
+.price-line .lbl b{display:block;color:var(--ink);font-weight:600;font-size:var(--step-0);font-family:var(--display)}
+.price-line .amt{font-family:var(--display);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:var(--step-1)}
+.price-line.is-deduct .amt{color:var(--blocker)}
+.price-line.is-final{border-top:2px solid var(--ink);margin-top:.35rem;padding-top:.6rem}
+.price-line.is-final .amt{font-size:var(--step-3);line-height:1.05}
+
+.band{margin-top:.8rem}
+.band-track{position:relative;height:54px;margin:.6rem 0 .2rem}
+.band-rail{position:absolute;inset:auto 0 10px;height:5px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line)}
+.band-fill{position:absolute;bottom:10px;height:5px;border-radius:3px;background:var(--accent-line)}
+.band-pin{position:absolute;bottom:4px;width:3px;height:17px;border-radius:2px;background:var(--muted);transform:translateX(-50%)}
+.band-pin[data-k="base"]{background:var(--accent);height:23px;bottom:1px;width:4px}
+.band-tick{position:absolute;top:0;transform:translateX(-50%);font-size:.66rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.band-tick b{display:block;color:var(--ink);font-weight:600}
+
+.gate{
+  border:1px solid var(--blocker);background:var(--blocker-soft);border-radius:7px;padding:.7rem .8rem;
+}
+.gate h4{font-size:var(--step-0);color:var(--blocker);font-weight:700;display:flex;gap:.4rem;align-items:center}
+.gate ul{margin:.45rem 0 0;padding-left:1.1rem;font-size:var(--step--1);color:var(--ink-2);line-height:1.55}
+.gate li{margin-bottom:.15rem}
+
+.actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.btn{
+  border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;
+  padding:.45rem .85rem;font-weight:600;font-size:var(--step--1);cursor:pointer;
+}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover:not(:disabled){filter:brightness(1.1);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.locked{
+  border:1px dashed var(--line-strong);border-radius:7px;padding:1rem;text-align:center;
+  background:var(--surface-2);
+}
+.locked .eyebrow{display:block;margin-bottom:.35rem}
+.locked p{font-size:var(--step--1);color:var(--muted);max-width:52ch;margin:0 auto;line-height:1.55}
+
+/* ---------- Audit ---------- */
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem;max-height:220px;overflow-y:auto}
+.log li{display:grid;grid-template-columns:auto 1fr;gap:.6rem;font-size:var(--step--1);padding-bottom:.4rem;border-bottom:1px solid var(--line)}
+.log li:last-child{border-bottom:0}
+.log time{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+.log b{font-weight:600}
+.log .who{color:var(--muted)}
+
+/* ---------- Intake ---------- */
+.captures{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:.7rem}
+.cap{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column}
+.cap-frame{
+  aspect-ratio:16/10;background:var(--surface-2);position:relative;display:grid;place-items:center;
+  border-bottom:1px solid var(--line);overflow:hidden;
+}
+.cap-guide{position:absolute;inset:11% 8%;border:2px dashed var(--line-strong);border-radius:4px;pointer-events:none}
+.cap-state{font-size:var(--step--1);color:var(--muted);text-align:center;padding:.6rem;z-index:1;max-width:95%}
+.cap-frame[data-st="ok"]{background:var(--ok-soft)}
+.cap-frame[data-st="ok"] .cap-guide{border-color:var(--ok);border-style:solid}
+.cap-frame[data-st="fail"]{background:var(--blocker-soft)}
+.cap-frame[data-st="fail"] .cap-guide{border-color:var(--blocker)}
+.cap-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cap-badge{
+  position:absolute;top:.4rem;left:.4rem;z-index:2;font-size:.64rem;font-weight:700;
+  padding:.14rem .4rem;border-radius:3px;letter-spacing:.03em;
+}
+.cap-badge[data-ok="true"]{background:var(--ok);color:#fff}
+.cap-badge[data-ok="flag"]{background:var(--warn);color:#fff}
+.cap-badge[data-ok="false"]{background:var(--blocker);color:#fff}
+.cap-fail{
+  position:absolute;left:0;right:0;bottom:0;z-index:2;padding:.45rem .55rem;
+  background:rgba(147,34,26,.94);color:#fff;font-size:.7rem;line-height:1.4;
+}
+.cap-fail b{display:block;font-family:var(--display)}
+.cap-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:.25rem;font-size:.62rem}
+.cap-metric{border:1px solid var(--line);border-radius:4px;padding:.22rem .3rem;text-align:center}
+.cap-metric[data-ok="false"]{border-color:var(--blocker);background:var(--blocker-soft);color:var(--blocker)}
+.cap-metric b{display:block;font-size:.74rem;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cap-metric[data-ok="false"] b{color:inherit}
+.cap-metric span{color:var(--muted)}
+.cap-metric[data-ok="false"] span{color:inherit}
+.cap-actions{display:flex;gap:.35rem;flex-wrap:wrap}
+.cap-actions .btn{flex:1;padding:.4rem .5rem}
+.file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.busy{opacity:.55;pointer-events:none}
+.cap-body{padding:.6rem .7rem;display:flex;flex-direction:column;gap:.4rem;flex:1}
+.cap-title{font-family:var(--display);font-weight:600;font-size:var(--step-0)}
+.cap-hint{font-size:.72rem;color:var(--muted);line-height:1.45;flex:1}
+.queue-strip{
+  display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:var(--step--1);
+  padding:.6rem .8rem;border:1px solid var(--line);border-radius:7px;background:var(--surface);
+}
+.dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--warn);flex:none}
+.dot[data-on="true"]{background:var(--ok)}
+
+/* ---------- Rubric ---------- */
+.rubric-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;align-items:start}
+.pt-grid{display:grid;grid-template-columns:1fr auto auto auto;gap:.3rem .5rem;align-items:center;font-size:var(--step--1)}
+.pt-grid .hd{font-family:var(--display);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:center}
+.pt-grid label{overflow-wrap:anywhere}
+.pt-grid input{width:3.6rem;text-align:right;font-variant-numeric:tabular-nums}
+.pt-grid .dmg-note{grid-column:1/-1;font-size:.72rem;color:var(--muted);margin:-.1rem 0 .35rem;line-height:1.45}
+.shift{font-size:var(--step--1);font-weight:600}
+.shift[data-dir="worse"]{color:var(--blocker)}
+.shift[data-dir="better"]{color:var(--ok)}
+
+.callout{
+  border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 7px 7px 0;
+  padding:.7rem .9rem;font-size:var(--step--1);line-height:1.55;color:var(--ink-2);
+}
+.callout b{color:var(--ink);font-family:var(--display)}
+
+.back-btn{display:none}
+
+/* ---------- Responsive ---------- */
+@media (max-width:920px){
+  .rubric-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .pane{grid-template-columns:1fr}
+  .queue-list{max-height:none}
+  .back-btn{display:inline-flex;align-items:center;gap:.3rem}
+  body[data-mobile="detail"] .queue{display:none}
+  body:not([data-mobile="detail"]) .dossier{display:none}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .appbar-in{gap:.6rem}
+  .tabs{order:3;width:100%}
+  .tab{flex:1}
+}
+</style>
+
+<header class="appbar">
+  <div class="appbar-in">
+    <div class="logo">CAREADY<em>.</em></div>
+    <span class="chip chip-neutral" title="Kendaraan, dokumen, pemilik, dan harga pada halaman ini adalah data buatan untuk pengembangan.">data buatan</span>
+    <div class="tabs" role="tablist" aria-label="Tampilan">
+      <button class="tab" role="tab" aria-selected="true" data-view="dasbor">Dasbor</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="intake">Intake</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="rubrik">Rubrik</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="ctl">
+      <label for="role">Peran</label>
+      <select id="role">
+        <option value="inspector">Inspektur</option>
+        <option value="appraiser">Penilai</option>
+        <option value="approver" selected>Penyetuju</option>
+      </select>
+    </div>
+    <button class="icon-btn" id="theme" title="Ganti tema" aria-label="Ganti tema">◐</button>
+  </div>
+</header>
+
+<main>
+  <!-- =============== DASBOR =============== -->
+  <section class="view" id="view-dasbor">
+    <div class="stats" id="stats"></div>
+    <div class="pane">
+      <div class="queue">
+        <div class="queue-head">
+          <span class="eyebrow">Antrean unit</span>
+          <select id="filter" aria-label="Saring antrean">
+            <option value="all">Semua</option>
+            <option value="blocker">Ada penghambat</option>
+            <option value="pending">Menunggu persetujuan</option>
+            <option value="clean">Tanpa temuan</option>
+          </select>
+        </div>
+        <div class="queue-list" id="queue"></div>
+      </div>
+      <div class="dossier" id="dossier"></div>
+    </div>
+  </section>
+
+  <!-- =============== INTAKE =============== -->
+  <section class="view" id="view-intake" hidden>
+    <h2 style="font-size:var(--step-2);margin-bottom:.3rem">Intake: empat foto wajib</h2>
+    <p style="color:var(--muted);font-size:var(--step--1);max-width:68ch;margin-bottom:1rem;line-height:1.6">
+      Ambil foto lewat kamera belakang. Setiap foto langsung diukur ketajaman, pencahayaan,
+      pantulan cahaya, dan resolusinya di perangkat. Foto yang tidak lolos ditolak dengan alasan
+      yang jelas, bukan diterima diam-diam lalu bermasalah di kantor.
+    </p>
+    <div class="captures" id="captures"></div>
+
+    <div style="margin-top:1rem" class="queue-strip">
+      <span class="dot" id="netdot"></span>
+      <b id="netlabel">Tidak ada koneksi</b>
+      <div class="spacer"></div>
+      <button class="btn" id="toggle-net">Sambungkan jaringan</button>
+      <button class="btn" id="reset-intake">Ulangi</button>
+    </div>
+  </section>
+
+  <!-- =============== RUBRIK =============== -->
+  <section class="view" id="view-rubrik" hidden>
+    <h2 style="font-size:var(--step-2);margin-bottom:.3rem">Bobot penilaian kerusakan</h2>
+    <p style="color:var(--muted);font-size:var(--step--1);max-width:72ch;margin-bottom:1rem;line-height:1.6">
+      Angka di bawah menentukan skor kerusakan setiap unit, dan skor itu menentukan grade-nya.
+      Ubah angka mana pun, seluruh grade di dasbor langsung dihitung ulang.
+    </p>
+
+    <div class="callout" style="margin-bottom:1rem">
+      <b>Bobot ini belum final.</b>
+      Angkanya dipilih sebagai titik awal dan masih menunggu penyesuaian dari tim penilai.
+      Selama belum final, setiap grade ditandai sementara dan keyakinan harga diturunkan satu tingkat.
+    </div>
+
+    <div class="rubric-grid">
+      <div class="card">
+        <div class="card-head"><h3>Poin per jenis dan tingkat kerusakan</h3></div>
+        <div class="card-body">
+          <div class="pt-grid" id="points">
+            <span></span><span class="hd">Ringan</span><span class="hd">Sedang</span><span class="hd">Berat</span>
+          </div>
+        </div>
+        <div class="card-note">
+          <strong>Celah panel</strong> sengaja dipasang jauh di atas <strong>baret</strong> di setiap
+          tingkat. Baret 10 cm cuma biaya poles. Celah panel 10 mm menandakan mobil pernah diperbaiki
+          struktural, dan itu menurunkan nilai jual jauh lebih dalam.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Dampak pada antrean</h3><span class="eyebrow">dihitung ulang langsung</span></div>
+        <div class="card-body tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>Unit</th><th>Kendaraan</th><th class="n">Skor</th><th>Grade</th><th>Perubahan</th></tr>
+            </thead>
+            <tbody id="impact"></tbody>
+          </table>
+        </div>
+        <div class="card-note" id="bandnote"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* ==========================================================================
+   Grading rubric: a faithful port of config/grading.yaml.
+   The arithmetic here is the real thing, not an approximation: same base
+   points, same panel weights, same interpolated area multiplier, same band
+   lookup, same downgrade rules.
+   ========================================================================== */
+const RUBRIC = {
+  minConfidence: 0.45,
+  basePoints: {
+    baret:           {1:1,  2:3,  3:6},
+    penyok:          {1:2,  2:6,  3:12},
+    karat:           {1:4,  2:10, 3:20},
+    cat_ulang:       {1:3,  2:8,  3:15},
+    retak:           {1:3,  2:8,  3:16},
+    pecah:           {1:6,  2:14, 3:25},
+    celah_panel:     {1:8,  2:18, 3:32},
+    komponen_hilang: {1:5,  2:12, 3:22}
+  },
+  panelWeights: {
+    front_bumper:.8, rear_bumper:.8, hood:1.2, roof:1.3, trunk_tailgate:1.1,
+    fender_fl:1, fender_fr:1, door_fl:1, door_fr:1, door_rl:.95, door_rr:.95,
+    quarter_panel_l:1.4, quarter_panel_r:1.4, windshield:1.2, rear_glass:1,
+    headlamp_l:.9, headlamp_r:.9, taillamp_l:.85, taillamp_r:.85, grille:.7,
+    mirror_l:.5, mirror_r:.5, wheel_fl:.6, wheel_fr:.6, wheel_rl:.6, wheel_rr:.6,
+    tire_fl:.5, tire_fr:.5, tire_rl:.5, tire_rr:.5
+  },
+  areaBreakpoints: [[0,.6],[.05,1],[.2,1.4],[.5,1.8],[1,2]],
+  bands: [
+    {label:"A", max:15,   desc:"Siap jual, perbaikan kosmetik minimal"},
+    {label:"B", max:35,   desc:"Perbaikan ringan, satu atau dua panel"},
+    {label:"C", max:60,   desc:"Perbaikan sedang, beberapa panel"},
+    {label:"D", max:90,   desc:"Perbaikan berat"},
+    {label:"E", max:null, desc:"Perbaikan sangat berat atau jual apa adanya"}
+  ],
+  downgrades: [
+    {cap:"C", why:"Celah panel tingkat sedang menandakan riwayat tabrakan",
+     test:d=>d.some(x=>x.type==="celah_panel"&&x.sev>=2)},
+    {cap:"D", why:"Celah panel berat, asumsikan ada perbaikan struktural",
+     test:d=>d.some(x=>x.type==="celah_panel"&&x.sev>=3)},
+    {cap:"D", why:"Karat berat jarang bersifat lokal",
+     test:d=>d.some(x=>x.type==="karat"&&x.sev>=3)},
+    {cap:"C", why:"Cat ulang pada dua panel atau lebih adalah tanda perbaikan tabrakan",
+     test:d=>new Set(d.filter(x=>x.type==="cat_ulang").map(x=>x.panel)).size>=2},
+    {cap:"D", why:"Kerusakan berat pada panel struktural",
+     test:d=>d.some(x=>x.sev>=3&&["roof","quarter_panel_l","quarter_panel_r"].includes(x.panel))},
+    {cap:"C", why:"Kaca depan pecah, termasuk komponen keselamatan",
+     test:d=>d.some(x=>x.panel==="windshield"&&x.type==="pecah")}
+  ]
+};
+
+const DAMAGE_LABEL = {
+  baret:"Baret", penyok:"Penyok", karat:"Karat", cat_ulang:"Cat ulang",
+  retak:"Retak", pecah:"Pecah", celah_panel:"Celah panel", komponen_hilang:"Komponen hilang"
+};
+const DAMAGE_NOTE = {
+  baret:"Goresan di permukaan", penyok:"Bodi penyok", karat:"Korosi", cat_ulang:"Warna tidak seragam",
+  retak:"Ada keretakan", pecah:"Pecah atau hancur", celah_panel:"Celah dan panel tidak lurus",
+  komponen_hilang:"Ada bagian yang hilang"
+};
+const PANEL_LABEL = {
+  front_bumper:"Bumper depan", rear_bumper:"Bumper belakang", hood:"Kap mesin", roof:"Atap",
+  trunk_tailgate:"Pintu bagasi", fender_fl:"Spakbor dpn kiri", fender_fr:"Spakbor dpn kanan",
+  door_fl:"Pintu dpn kiri", door_fr:"Pintu dpn kanan", door_rl:"Pintu blk kiri", door_rr:"Pintu blk kanan",
+  quarter_panel_l:"Quarter panel kiri", quarter_panel_r:"Quarter panel kanan",
+  windshield:"Kaca depan", rear_glass:"Kaca belakang", headlamp_l:"Lampu dpn kiri",
+  headlamp_r:"Lampu dpn kanan", taillamp_l:"Lampu blk kiri", taillamp_r:"Lampu blk kanan",
+  grille:"Gril", mirror_l:"Spion kiri", mirror_r:"Spion kanan",
+  wheel_fl:"Velg dpn kiri", wheel_fr:"Velg dpn kanan", wheel_rl:"Velg blk kiri", wheel_rr:"Velg blk kanan",
+  tire_fl:"Ban dpn kiri", tire_fr:"Ban dpn kanan", tire_rl:"Ban blk kiri", tire_rr:"Ban blk kanan"
+};
+
+function areaMultiplier(ratio){
+  if(ratio==null) return 1;
+  const bp = RUBRIC.areaBreakpoints;
+  if(ratio<=bp[0][0]) return bp[0][1];
+  for(let i=0;i<bp.length-1;i++){
+    const [x0,y0]=bp[i],[x1,y1]=bp[i+1];
+    if(ratio<=x1) return y0+(y1-y0)*((ratio-x0)/(x1-x0));
+  }
+  return bp[bp.length-1][1];
+}
+
+function bandFor(score){
+  for(const b of RUBRIC.bands){ if(b.max===null||score<=b.max) return b; }
+  return RUBRIC.bands[RUBRIC.bands.length-1];
+}
+const BAND_ORDER = RUBRIC.bands.map(b=>b.label);
+function worseOf(a,b){ return BAND_ORDER.indexOf(a)>=BAND_ORDER.indexOf(b)?a:b; }
+
+/** Deduplicate by (panel, damage_type), keeping worst severity then largest area. */
+function dedupe(dmg){
+  const best = new Map();
+  for(const d of dmg){
+    const key = d.panel+"|"+d.type;
+    const cur = best.get(key);
+    if(!cur || d.sev>cur.sev || (d.sev===cur.sev && (d.area||0)>(cur.area||0))) best.set(key,d);
+  }
+  return [...best.values()];
+}
+
+function computeGrade(damages){
+  const kept = dedupe(damages.filter(d=>(d.conf??1)>=RUBRIC.minConfidence));
+  const rows = kept.map(d=>{
+    const base = RUBRIC.basePoints[d.type][d.sev];
+    const pw = RUBRIC.panelWeights[d.panel] ?? 1;
+    const am = areaMultiplier(d.area);
+    return {...d, base, pw, am, points: base*pw*am};
+  }).sort((a,b)=>b.points-a.points);
+
+  const score = rows.reduce((s,r)=>s+r.points,0);
+  const pre = bandFor(score).label;
+  let label = pre;
+  const applied = [];
+  for(const rule of RUBRIC.downgrades){
+    if(rule.test(kept)){ applied.push(rule); label = worseOf(label, rule.cap); }
+  }
+  return {score, rows, pre, label, applied, band: RUBRIC.bands.find(b=>b.label===label)};
+}
+
+/* ==========================================================================
+   Pricing.
+   The production engine is LightGBM quantile regression. A browser page cannot
+   run it, so what is reproduced here is the part that IS deterministic and
+   documented: the Layer-1 residual anchor against new-car OTR, the condition
+   effect, and the predict-twice structure that makes the deduction a DERIVED
+   figure rather than a table lookup. The quantile spread is a fixed documented
+   multiplier standing in for the trained models.
+   ========================================================================== */
+const PRICING = {
+  p30:-.072, p70:.078,
+  referenceScore:12,
+  damageSensitivity:.0045, damageFloor:.55,
+  celahExtra:.955,
+  taxPenalty:{ACTIVE:0, EXPIRING_SOON:0, EXPIRED_LT_12M:1_500_000, EXPIRED_GTE_12M:4_500_000}
+};
+
+function conditionEffect(score, hasCelah){
+  let e = Math.max(PRICING.damageFloor, 1 - PRICING.damageSensitivity*score);
+  if(hasCelah) e *= PRICING.celahExtra;
+  return e;
+}
+
+function priceUnit(u, grade){
+  const hasCelah = grade.rows.some(r=>r.type==="celah_panel");
+  const anchored = u.otr * u.anchor;
+  const refValue = anchored * conditionEffect(PRICING.referenceScore, false);
+  const actValue = anchored * conditionEffect(grade.score, hasCelah)
+                   - (PRICING.taxPenalty[u.tax] ?? 0);
+  const amp  = Math.round(refValue/100000)*100000;
+  const base = Math.round(actValue*(1+PRICING.p30)/100000)*100000;
+  const p50  = Math.round(actValue/100000)*100000;
+  const p70  = Math.round(actValue*(1+PRICING.p70)/100000)*100000;
+  return {amp, base, p30:base, p50, p70, deduction: amp-base, hasCelah};
+}
+
+/* ==========================================================================
+   Units
+   ========================================================================== */
+const D = (panel,type,sev,area,conf=.9)=>({panel,type,sev,area,conf});
+
+const UNITS = [
+  {
+    code:"CR-26-0401", status:"PENDING_APPROVAL", defect:"vin_mismatch",
+    merk:"Toyota", model:"Avanza", trim:"G", trans:"AT", year:2019, cc:1496,
+    odo:96400, colour:"Hitam", branch:"JKT-01", seller:"leasing",
+    otr:252_000_000, anchor:.55, tax:"ACTIVE", taxUntil:"14-03-2027",
+    plat:"B 1842 KZL", pemilik:"Budi Santoso",
+    alamat:"Jl. Melati No. 47 RT 04/RW 09, Jakarta Selatan, DKI Jakarta",
+    rangka:"MHFM1BA3JK5528714", mesin:"F65328841",
+    platRangka:"MHFM1BA3JK9174462", platMesin:"F65328841", plateCond:"CLEAN",
+    damages:[D("front_bumper","baret",2,.08),D("door_fl","penyok",2,.06),D("hood","cat_ulang",1,.12)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0402", status:"PENDING_APPROVAL", defect:"vin_near_match",
+    merk:"Daihatsu", model:"Xenia", trim:"R", trans:"MT", year:2018, cc:1496,
+    odo:118200, colour:"Silver", branch:"SBY-01", seller:"leasing",
+    otr:214_000_000, anchor:.49, tax:"EXPIRING_SOON", taxUntil:"02-10-2026",
+    plat:"L 3391 QBN", pemilik:"Siti Rahayu",
+    alamat:"Jl. Anggrek No. 12 RT 02/RW 05, Surabaya, Jawa Timur",
+    rangka:"MHKV5EA2GJK338209", mesin:"F65119043",
+    platRangka:"MHKV5EA2GJK338269", platMesin:"F65119043", plateCond:"RUST_LIGHT",
+    damages:[D("rear_bumper","baret",1,.04),D("door_rl","baret",2,.07),D("tire_rl","baret",1,.02)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0403", status:"PENDING_APPROVAL", defect:"vin_ocr_ambiguity",
+    merk:"Honda", model:"Brio", trim:"Satya E", trans:"CVT", year:2021, cc:1199,
+    odo:41800, colour:"Putih", branch:"JKT-01", seller:"individual",
+    otr:198_000_000, anchor:.68, tax:"ACTIVE", taxUntil:"22-06-2027",
+    plat:"B 2207 SFD", pemilik:"Andi Wijaya",
+    alamat:"Jl. Kenanga No. 8 RT 07/RW 03, Bekasi, Jawa Barat",
+    rangka:"MHRDD1830M0142905", mesin:"L12B31047",
+    // Differs from `rangka` ONLY by 0→O and 1→I.
+    platRangka:"MHRDDI83OMOI429O5", platMesin:"L12B31047", plateCond:"CLEAN",
+    damages:[D("front_bumper","baret",1,.03)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0404", status:"PENDING_APPROVAL", defect:"engine_no_mismatch",
+    merk:"Mitsubishi", model:"Xpander", trim:"Ultimate", trans:"AT", year:2020, cc:1499,
+    odo:78900, colour:"Abu-abu", branch:"BDG-01", seller:"fleet",
+    otr:318_000_000, anchor:.60, tax:"ACTIVE", taxUntil:"08-01-2027",
+    plat:"D 1650 PWA", pemilik:"Dewi Lestari",
+    alamat:"Jl. Merdeka No. 121 RT 01/RW 11, Bandung, Jawa Barat",
+    rangka:"MHMA1G32AKJ007731", mesin:"4A91G22086",
+    platRangka:"MHMA1G32AKJ007731", platMesin:"ZZZ4471902", plateCond:"CLEAN",
+    damages:[D("quarter_panel_r","penyok",2,.09),D("door_rr","cat_ulang",2,.16),D("taillamp_r","retak",1,.03)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0405", status:"PENDING_APPROVAL", defect:"tampered_plate",
+    merk:"Suzuki", model:"Ertiga", trim:"GX", trans:"AT", year:2019, cc:1462,
+    odo:104700, colour:"Putih", branch:"MDN-01", seller:"dealer",
+    otr:279_000_000, anchor:.52, tax:"EXPIRED_LT_12M", taxUntil:"19-02-2026",
+    plat:"BK 1184 RHT", pemilik:"Agus Firmansyah",
+    alamat:"Jl. Diponegoro No. 66 RT 05/RW 02, Medan, Sumatera Utara",
+    rangka:"MHYKC61V5KJ411208", mesin:"K14B884120",
+    platRangka:"MHYKC61V5KJ411208", platMesin:"K14B884120", plateCond:"TAMPERED_SUSPECTED",
+    damages:[D("hood","baret",2,.11),D("fender_fr","penyok",2,.07),D("grille","retak",2,.05)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0406", status:"PENDING_APPROVAL", defect:"odometer_rollback",
+    merk:"Toyota", model:"Innova", trim:"G", trans:"AT", year:2018, cc:2393,
+    odo:9200, colour:"Hitam", branch:"JKT-02", seller:"individual",
+    otr:436_000_000, anchor:.55, tax:"ACTIVE", taxUntil:"30-11-2026",
+    plat:"B 1109 TYU", pemilik:"Rina Kusuma",
+    alamat:"Jl. Sudirman No. 200 RT 08/RW 01, Jakarta Selatan, DKI Jakarta",
+    rangka:"MHFJB8EM4J2288104", mesin:"2GD4471290",
+    platRangka:"MHFJB8EM4J2288104", platMesin:"2GD4471290", plateCond:"CLEAN",
+    damages:[D("door_fr","baret",1,.05),D("rear_bumper","penyok",1,.04)],
+    checklist:{odometer_tampering:"Kilometer tidak wajar untuk usia kendaraan, dugaan reset."}
+  },
+  {
+    code:"CR-26-0407", status:"PENDING_APPROVAL", defect:"photo_reuse",
+    merk:"Daihatsu", model:"Terios", trim:"R", trans:"AT", year:2020, cc:1496,
+    odo:71300, colour:"Merah", branch:"JKT-01", seller:"leasing",
+    otr:296_000_000, anchor:.62, tax:"ACTIVE", taxUntil:"05-05-2027",
+    plat:"B 1776 MNC", pemilik:"Eko Nugroho",
+    alamat:"Jl. Cendrawasih No. 31 RT 03/RW 06, Tangerang, Banten",
+    rangka:"MHKG2CJ1SLK190334", mesin:"2NR1120774",
+    platRangka:"MHKG2CJ1SLK190334", platMesin:"2NR1120774", plateCond:"CLEAN",
+    damages:[D("door_rl","baret",1,.04),D("wheel_fl","baret",2,.03)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0408", status:"PRICED", defect:"tax_expired_long",
+    merk:"Honda", model:"Mobilio", trim:"E", trans:"CVT", year:2017, cc:1497,
+    odo:142600, colour:"Silver", branch:"SMG-01", seller:"individual",
+    otr:263_000_000, anchor:.42, tax:"EXPIRED_GTE_12M", taxUntil:"11-04-2024",
+    plat:"H 8823 VDS", pemilik:"Wahyu Hartono",
+    alamat:"Jl. Pahlawan No. 19 RT 06/RW 08, Semarang, Jawa Tengah",
+    rangka:"MHRDD4830HJ200518", mesin:"L15Z12277",
+    platRangka:"MHRDD4830HJ200518", platMesin:"L15Z12277", plateCond:"RUST_LIGHT",
+    damages:[D("quarter_panel_l","karat",2,.07),D("door_rr","baret",2,.06),
+             D("rear_bumper","cat_ulang",2,.18),D("trunk_tailgate","cat_ulang",1,.09)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0409", status:"GRADED", defect:"unresolved_variant",
+    merk:"Wuling", model:"Confero", trim:"S", trans:"?", year:2021, cc:1485,
+    odo:58400, colour:"Putih", branch:"MKS-01", seller:"fleet",
+    otr:186_000_000, anchor:.41, tax:"ACTIVE", taxUntil:"27-08-2027",
+    plat:"DD 1432 GHK", pemilik:"Nurul Permana",
+    alamat:"Jl. Kartini No. 5 RT 02/RW 04, Makassar, Sulawesi Selatan",
+    rangka:"MJBCF1A32MB012877", mesin:"LJ4651120",
+    platRangka:"MJBCF1A32MB012877", platMesin:"LJ4651120", plateCond:"CLEAN",
+    tipeRaw:"XX-48217-ZZ",
+    damages:[D("front_bumper","baret",1,.05),D("hood","penyok",1,.03)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0410", status:"ICR_DONE", defect:"low_ocr_confidence",
+    merk:"Toyota", model:"Rush", trim:"G", trans:"AT", year:2022, cc:1496,
+    odo:33100, colour:"Hitam", branch:"DPS-01", seller:"dealer",
+    otr:288_000_000, anchor:.71, tax:"ACTIVE", taxUntil:"16-09-2027",
+    plat:"DK 1055 XAP", pemilik:"Fitri Maulana",
+    alamat:"Jl. Mawar No. 23 RT 01/RW 07, Denpasar, Bali",
+    rangka:"MHFE2CJ1NNK340992", mesin:"2NR7710448",
+    platRangka:"MHFE2CJ1NNK340992", platMesin:"2NR7710448", plateCond:"SCRATCHED_OVER",
+    lowConf:{"No. rangka":.71, "Tahun pembuatan":.62, "Odometer":.58, "Tipe":.49},
+    damages:[D("rear_bumper","baret",1,.03)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0411", status:"APPROVED", defect:null,
+    merk:"Toyota", model:"Avanza", trim:"Veloz Q", trans:"CVT", year:2021, cc:1496,
+    odo:52800, colour:"Putih", branch:"JKT-01", seller:"leasing",
+    otr:310_000_000, anchor:.67, tax:"ACTIVE", taxUntil:"03-07-2027",
+    plat:"B 1290 JQW", pemilik:"Maya Gunawan",
+    alamat:"Jl. Gatot Subroto No. 88 RT 09/RW 02, Jakarta Selatan, DKI Jakarta",
+    rangka:"MHFW1BA4MK6620183", mesin:"2NR6620183",
+    platRangka:"MHFW1BA4MK6620183", platMesin:"2NR6620183", plateCond:"CLEAN",
+    damages:[D("front_bumper","baret",1,.04),D("mirror_r","baret",1,.02)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0412", status:"PENDING_APPROVAL", defect:null,
+    merk:"Honda", model:"HR-V", trim:"E", trans:"CVT", year:2020, cc:1497,
+    odo:67900, colour:"Abu-abu", branch:"BDG-01", seller:"leasing",
+    otr:372_000_000, anchor:.63, tax:"ACTIVE", taxUntil:"12-12-2026",
+    plat:"D 1477 LKM", pemilik:"Hendra Saputra",
+    alamat:"Jl. Ahmad Yani No. 54 RT 03/RW 10, Bandung, Jawa Barat",
+    rangka:"MHRRU1850LJ308841", mesin:"L15Z30884",
+    platRangka:"MHRRU1850LJ308841", platMesin:"L15Z30884", plateCond:"CLEAN",
+    damages:[D("door_fl","baret",2,.06),D("rear_bumper","penyok",1,.05),D("wheel_rr","baret",1,.02)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0413", status:"PRICED", defect:null,
+    merk:"Mitsubishi", model:"Pajero Sport", trim:"Dakar 4x2", trans:"AT", year:2019, cc:2442,
+    odo:94100, colour:"Hitam", branch:"JKT-02", seller:"fleet",
+    otr:702_000_000, anchor:.57, tax:"ACTIVE", taxUntil:"21-04-2027",
+    plat:"B 1918 ZRT", pemilik:"Bambang Susanto",
+    alamat:"Jl. Kenanga No. 77 RT 04/RW 05, Jakarta Selatan, DKI Jakarta",
+    rangka:"MMBQF46K0KH014502", mesin:"4N15014502",
+    platRangka:"MMBQF46K0KH014502", platMesin:"4N15014502", plateCond:"CLEAN",
+    damages:[D("front_bumper","baret",2,.09),D("hood","penyok",2,.06),
+             D("fender_fl","cat_ulang",2,.14),D("door_fl","celah_panel",2,.012)],
+    checklist:{}
+  },
+  {
+    code:"CR-26-0414", status:"GRADED", defect:null,
+    merk:"Suzuki", model:"Carry", trim:"Wide Deck", trans:"MT", year:2022, cc:1462,
+    odo:46200, colour:"Putih", branch:"SBY-01", seller:"fleet",
+    otr:178_000_000, anchor:.66, tax:"ACTIVE", taxUntil:"09-02-2027",
+    plat:"L 8802 UCN", pemilik:"Joko Salim",
+    alamat:"Jl. Mawar No. 3 RT 02/RW 09, Surabaya, Jawa Timur",
+    rangka:"MHYESL415NJ662031", mesin:"K15B662031",
+    platRangka:"MHYESL415NJ662031", platMesin:"K15B662031", plateCond:"CLEAN",
+    damages:[D("rear_bumper","penyok",2,.08),D("tire_rr","baret",2,.03),D("door_fr","karat",1,.04)],
+    checklist:{}
+  }
+];
+
+/* ==========================================================================
+   Cross-checks: the fraud layer. No check corrects anything; each returns a
+   verdict and a severity.
+   ========================================================================== */
+const NORMALISE = {O:"0", I:"1", Q:"0"};
+const norm = s => (s||"").toUpperCase().replace(/[\s\-.\/\\*#]/g,"").replace(/[OIQ]/g,c=>NORMALISE[c]);
+
+function editDistance(a,b){
+  const m=a.length, n=b.length;
+  let prev=Array.from({length:n+1},(_,i)=>i), cur=new Array(n+1);
+  for(let i=1;i<=m;i++){
+    cur[0]=i;
+    for(let j=1;j<=n;j++){
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+    [prev,cur]=[cur,prev];
+  }
+  return prev[n];
+}
+
+/** Character classes for the diff display: exact / normalisation-only / real mismatch. */
+function diffChars(a,b){
+  const out=[];
+  const len=Math.max(a.length,b.length);
+  for(let i=0;i<len;i++){
+    const ca=a[i]??"·", cb=b[i]??"·";
+    if(ca===cb) out.push({c:cb,d:"same"});
+    else if(norm(ca)===norm(cb)) out.push({c:cb,d:"norm"});
+    else out.push({c:cb,d:"bad"});
+  }
+  return out;
+}
+
+const VERDICT_LABEL = {PASS:"Cocok", NEEDS_REVIEW:"Perlu ditinjau", MISMATCH:"Tidak cocok"};
+const SEV_LABEL = {INFO:"Info", WARNING:"Perhatian", BLOCKER:"Penghambat"};
+
+function idMatch(stnkVal, plateVal, kind){
+  const label = kind==="vin" ? "NOMOR RANGKA" : "NOMOR MESIN";
+  const na=norm(stnkVal), nb=norm(plateVal);
+  const dist=editDistance(na,nb);
+  const normApplied = na===nb && stnkVal.toUpperCase()!==plateVal.toUpperCase();
+
+  if(dist===0){
+    return {name:label, verdict:"PASS", sev:"INFO", normApplied,
+      msg: normApplied
+        ? "Cocok setelah huruf O dibaca angka 0 dan huruf I dibaca angka 1. Penomoran rangka memang tidak memakai huruf I, O, dan Q karena gampang tertukar, dan pembacaan otomatis melakukan kekeliruan yang sama. Kecocokan seperti ini tetap dicatat terpisah dari kecocokan persis."
+        : "Nomor pada plat sama persis dengan STNK.",
+      a:stnkVal, b:plateVal, dist};
+  }
+  if(dist<=2){
+    return {name:label, verdict:"NEEDS_REVIEW", sev:"WARNING", normApplied,
+      msg:`Selisih ${dist} karakter, masih dalam batas toleransi pembacaan tapi belum dianggap cocok. Diteruskan ke penilai untuk dicek manual, bukan dibetulkan otomatis.`,
+      a:stnkVal, b:plateVal, dist};
+  }
+  return {name:label, verdict:"MISMATCH", sev:"BLOCKER", normApplied,
+    msg:`Selisih ${dist} karakter, jauh di atas batas toleransi pembacaan. Ini tanda identitas kendaraan tidak cocok dengan dokumennya, bukan salah baca. Persetujuan otomatis diblokir.`,
+    a:stnkVal, b:plateVal, dist};
+}
+
+const PLATE_LABEL = {
+  CLEAN:"Bersih", RUST_LIGHT:"Karat ringan", RUST_HEAVY:"Karat berat",
+  REPAINTED:"Dicat ulang", SCRATCHED_OVER:"Tergores menutup",
+  TAMPERED_SUSPECTED:"Diduga dimanipulasi", ILLEGIBLE:"Tidak terbaca"
+};
+const TAX_LABEL = {
+  ACTIVE:"Aktif", EXPIRING_SOON:"Akan jatuh tempo",
+  EXPIRED_LT_12M:"Mati kurang dari 12 bulan", EXPIRED_GTE_12M:"Mati lebih dari 12 bulan"
+};
+
+function crossChecks(u){
+  const out = [];
+  out.push(idMatch(u.rangka, u.platRangka, "vin"));
+  out.push(idMatch(u.mesin, u.platMesin, "engine"));
+
+  const tampered = u.plateCond==="TAMPERED_SUSPECTED";
+  out.push({
+    name:"KONDISI PLAT", verdict: tampered?"MISMATCH":"PASS", sev: tampered?"BLOCKER":
+      (["RUST_HEAVY","REPAINTED","SCRATCHED_OVER","ILLEGIBLE"].includes(u.plateCond)?"WARNING":"INFO"),
+    msg: tampered
+      ? "Ada bekas gerinda dan cat ulang di area nomor rangka. Ini tanda kecurangan, bukan masalah kosmetik. Persetujuan otomatis diblokir dan wajib ditinjau penilai."
+      : `Plat terbaca <b>${PLATE_LABEL[u.plateCond]}</b>. Tidak ada indikasi nomor diubah.`
+  });
+
+  const age = Math.max(1, 2026 - u.year);
+  const kmYr = Math.round(u.odo/age);
+  if(kmYr < 1000 && age >= 5){
+    out.push({name:"KEWAJARAN ODOMETER", verdict:"MISMATCH", sev:"BLOCKER",
+      msg:`Setara <b>${kmYr.toLocaleString("id-ID")} km/tahun</b> untuk unit berusia ${age} tahun. Ini pola khas odometer yang diputar balik. Angka rendah di unit tua ditangani lebih serius daripada angka tinggi, karena kilometer tinggi cuma masukan penilaian, bukan tanda kecurangan.`});
+  } else if(kmYr < 2000 || kmYr > 40000){
+    out.push({name:"KEWAJARAN ODOMETER", verdict:"NEEDS_REVIEW", sev:"WARNING",
+      msg:`Setara <b>${kmYr.toLocaleString("id-ID")} km/tahun</b>, di luar rentang wajar 2.000 sampai 40.000.`});
+  } else {
+    out.push({name:"KEWAJARAN ODOMETER", verdict:"PASS", sev:"INFO",
+      msg:`Setara <b>${kmYr.toLocaleString("id-ID")} km/tahun</b>, masih dalam rentang wajar.`});
+  }
+
+  if(u.defect==="photo_reuse"){
+    out.push({name:"FOTO DIPAKAI ULANG", verdict:"MISMATCH", sev:"BLOCKER",
+      msg:"Foto STNK persis sama dengan unit <b>CR-26-0401</b>. Dokumen yang sama difoto untuk dua unit berbeda."});
+  }
+
+  const taxSev = u.tax==="ACTIVE"||u.tax==="EXPIRING_SOON" ? "INFO" : "WARNING";
+  out.push({name:"STATUS PAJAK", verdict: taxSev==="INFO"?"PASS":"NEEDS_REVIEW", sev:taxSev,
+    msg: u.tax==="EXPIRED_GTE_12M"
+      ? `Berlaku sampai <b>${u.taxUntil}</b>, mati lebih dari 12 bulan. Ini biaya nyata buat pembeli: denda progresif, dan kalau sudah lewat batas tertentu harus registrasi ulang. Dibaca dari panel pajak STNK.`
+      : `Berlaku sampai <b>${u.taxUntil}</b>, ${TAX_LABEL[u.tax].toLowerCase()}.`});
+
+  if(u.lowConf){
+    const list = Object.entries(u.lowConf)
+      .map(([k,v])=>`${k} ${(v*100).toFixed(0)}%`).join(", ");
+    out.push({name:"KETERBACAAN DOKUMEN", verdict:"NEEDS_REVIEW", sev:"WARNING",
+      msg:`Empat kolom terbaca di bawah ambang: ${list}. Unit masuk antrean verifikasi manual. Kolom identitas dan kolom penentu harga pakai ambang lebih ketat daripada kolom kosmetik.`});
+  }
+
+  if(u.defect==="unresolved_variant"){
+    out.push({name:"VARIAN KENDARAAN", verdict:"MISMATCH", sev:"BLOCKER",
+      msg:`Kolom tipe di STNK berbunyi <span class="mono">${u.tipeRaw}</span> dan tidak cocok dengan satu pun entri katalog. STNK juga tidak mencatat transmisi, jadi varian tidak bisa ditebak. <b>Penetapan harga tidak dijalankan sampai penilai memilih varian.</b>`});
+  }
+  return out;
+}
+
+const CHECKLIST_LABEL = {
+  flood_indication:"Indikasi banjir", chassis_repair:"Perbaikan rangka",
+  engine_condition:"Kondisi mesin", transmission_condition:"Kondisi transmisi",
+  odometer_tampering:"Manipulasi odometer", airbag_deployed:"Airbag pernah meletus",
+  document_completeness:"Kelengkapan dokumen"
+};
+
+/* ==========================================================================
+   State
+   ========================================================================== */
+const state = {
+  view:"dasbor",
+  role:"approver",
+  selected:UNITS[0].code,
+  filter:"all",
+  unmasked:new Set(),
+  decisions:new Map(),
+  log:[],
+  baseline:new Map()
+};
+
+const ROLE_LABEL = {inspector:"Inspektur", appraiser:"Penilai", approver:"Penyetuju"};
+const ROLE_CAPS = {
+  inspector:{price:false, unmask:false, approve:false},
+  appraiser:{price:true,  unmask:true,  approve:false},
+  approver: {price:true,  unmask:true,  approve:true}
+};
+
+const rp   = n => "Rp " + Math.round(n).toLocaleString("id-ID");
+const rpJt = n => "Rp " + (n/1_000_000).toLocaleString("id-ID",{maximumFractionDigits:1}) + " jt";
+const esc  = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function maskName(n){
+  return n.split(" ").map(w=>w[0] + "*".repeat(Math.max(1,w.length-1))).join(" ");
+}
+function maskAddress(a){
+  const parts = a.split(", ");
+  return "•••••••••••, " + parts.slice(-2).join(", ");
+}
+
+function nowStamp(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")
+       + ":"+String(d.getSeconds()).padStart(2,"0");
+}
+function addLog(action, detail){
+  state.log.unshift({t:nowStamp(), who:ROLE_LABEL[state.role], action, detail});
+  if(state.log.length>40) state.log.pop();
+}
+
+function analyse(u){
+  const grade = computeGrade(u.damages);
+  const checks = crossChecks(u);
+  const flagged = Object.keys(u.checklist||{});
+  const blockers = checks.filter(c=>c.sev==="BLOCKER")
+    .map(c=>`${c.name.toLowerCase()}: ${VERDICT_LABEL[c.verdict].toLowerCase()}`);
+  flagged.forEach(k=>blockers.push(`checklist ditandai: ${CHECKLIST_LABEL[k].toLowerCase()}`));
+  const priceable = u.defect!=="unresolved_variant";
+  const price = priceable ? priceUnit(u, grade) : null;
+  return {grade, checks, blockers, flagged, price, priceable};
+}
+
+function severityOf(a){
+  if(a.blockers.length) return "blocker";
+  if(a.checks.some(c=>c.sev==="WARNING")) return "warn";
+  return "ok";
+}
+
+const STATUS_LABEL = {
+  DRAFT:"Draf", ICR_DONE:"Dokumen terbaca", GRADED:"Sudah digrade", PRICED:"Sudah dihargai",
+  PENDING_APPROVAL:"Menunggu persetujuan", APPROVED:"Disetujui", REJECTED:"Ditolak"
+};
+
+function effectiveStatus(u){ return state.decisions.get(u.code) ?? u.status; }
+
+/* ==========================================================================
+   Render: queue
+   ========================================================================== */
+function renderStats(){
+  const rows = UNITS.map(u=>({u, a:analyse(u)}));
+  const blocked = rows.filter(r=>r.a.blockers.length).length;
+  const pending = rows.filter(r=>effectiveStatus(r.u)==="PENDING_APPROVAL").length;
+  const approved = rows.filter(r=>effectiveStatus(r.u)==="APPROVED").length;
+  const unresolved = rows.filter(r=>!r.a.priceable).length;
+
+  const caps = ROLE_CAPS[state.role];
+  const totalBase = rows.filter(r=>r.a.price && effectiveStatus(r.u)==="APPROVED")
+    .reduce((s,r)=>s+r.a.price.base,0);
+
+  const tiles = [
+    {v:UNITS.length, k:"Unit dalam antrean", cls:""},
+    {v:blocked, k:"Ada penghambat", cls:"is-blocker"},
+    {v:pending, k:"Menunggu persetujuan", cls:"is-warn"},
+    {v:unresolved, k:"Varian belum jelas", cls:unresolved?"is-warn":""},
+    {v:approved, k:"Disetujui", cls:""}
+  ];
+  if(caps.price) tiles.push({v:rpJt(totalBase), k:"Nilai dasar disetujui", cls:""});
+
+  document.getElementById("stats").innerHTML = tiles.map(t=>`
+    <div class="stat ${t.cls}">
+      <div class="v">${esc(t.v)}</div>
+      <div class="k">${esc(t.k)}</div>
+    </div>`).join("");
+}
+
+function renderQueue(){
+  const caps = ROLE_CAPS[state.role];
+  const rows = UNITS.map(u=>({u, a:analyse(u)})).filter(({u,a})=>{
+    if(state.filter==="blocker") return a.blockers.length>0;
+    if(state.filter==="pending") return effectiveStatus(u)==="PENDING_APPROVAL";
+    if(state.filter==="clean")   return a.blockers.length===0 && !a.checks.some(c=>c.sev==="WARNING");
+    return true;
+  });
+
+  document.querySelector(".queue-head .eyebrow").textContent = `Antrean unit · ${rows.length}`;
+
+  document.getElementById("queue").innerHTML = rows.map(({u,a})=>{
+    const sev = severityOf(a);
+    const st = effectiveStatus(u);
+    const tags = [];
+    if(a.blockers.length) tags.push(`<span class="chip chip-blocker">${a.blockers.length} penghambat</span>`);
+    if(!a.priceable) tags.push(`<span class="chip chip-warn">varian belum jelas</span>`);
+    if(a.flagged.length) tags.push(`<span class="chip chip-warn">checklist</span>`);
+    tags.push(`<span class="chip chip-neutral">${esc(STATUS_LABEL[st])}</span>`);
+
+    const priceBit = caps.price && a.price
+      ? `<span class="num">${rpJt(a.price.base)}</span>`
+      : `<span style="color:var(--muted)">belum ada harga</span>`;
+
+    return `
+      <button class="row" data-code="${u.code}" data-sev="${sev}"
+              aria-current="${u.code===state.selected}">
+        <span class="row-stripe"></span>
+        <span class="row-main">
+          <span class="row-code">${u.code}</span>
+          <div class="row-name">${esc(u.merk)} ${esc(u.model)} ${esc(u.trim)}</div>
+          <div class="row-meta">${u.year} · ${u.odo.toLocaleString("id-ID")} km · ${esc(u.branch)} · ${priceBit}</div>
+          <div class="row-tags">${tags.join("")}</div>
+        </span>
+        <span class="grade" data-g="${a.grade.label}">${a.grade.label}</span>
+      </button>`;
+  }).join("") || `<div style="padding:1.4rem;text-align:center;color:var(--muted);font-size:var(--step--1)">Tidak ada unit di saringan ini.</div>`;
+}
+
+/* ==========================================================================
+   Render: dossier
+   ========================================================================== */
+function renderDossier(){
+  const u = UNITS.find(x=>x.code===state.selected);
+  if(!u) return;
+  const a = analyse(u);
+  const caps = ROLE_CAPS[state.role];
+  const st = effectiveStatus(u);
+
+  document.getElementById("dossier").innerHTML = [
+    identityCard(u,a,caps,st),
+    checksCard(u,a),
+    gradeCard(u,a),
+    checklistCard(u,a),
+    priceCard(u,a,caps),
+    approvalCard(u,a,caps,st),
+    logCard()
+  ].join("");
+}
+
+function identityCard(u,a,caps,st){
+  const unmasked = state.unmasked.has(u.code) && caps.unmask;
+  const piiRow = (label, value, masker) => {
+    const shown = unmasked ? value : masker(value);
+    return `<dt>${label}</dt><dd><span class="pii">
+      <span class="pii-val" data-masked="${!unmasked}">${esc(shown)}</span>
+      ${caps.unmask
+        ? `<button class="mini-btn" data-act="unmask" data-code="${u.code}">${unmasked?"Sembunyikan":"Buka"}</button>`
+        : `<span class="chip chip-neutral">tidak berwenang</span>`}
+    </span></dd>`;
+  };
+
+  return `
+  <div class="card">
+    <div class="card-body">
+      <div class="unit-hero">
+        <div style="flex:1;min-width:200px">
+          <span class="eyebrow">${u.code} · ${esc(u.branch)} · ${esc(STATUS_LABEL[st])}</span>
+          <h2>${esc(u.merk)} ${esc(u.model)} ${esc(u.trim)}</h2>
+          <div class="sub">${u.year} · ${esc(u.trans)} · ${u.cc} cc · ${u.odo.toLocaleString("id-ID")} km · ${esc(u.colour)}</div>
+        </div>
+        <button class="btn back-btn" data-act="back">← Antrean</button>
+        <span class="grade" data-g="${a.grade.label}" style="width:2.6rem;height:2.6rem;font-size:var(--step-2)">${a.grade.label}</span>
+      </div>
+    </div>
+    <div class="card-head" style="border-top:1px solid var(--line)">
+      <h3>Data STNK</h3>
+      <span class="eyebrow">sumber utama</span>
+    </div>
+    <div class="card-body">
+      <dl class="kv">
+        <dt>No. registrasi</dt><dd class="mono">${esc(u.plat)}</dd>
+        ${piiRow("Nama pemilik", u.pemilik, maskName)}
+        ${piiRow("Alamat", u.alamat, maskAddress)}
+        <dt>Merk / tipe</dt><dd>${esc(u.merk)} · <span class="mono">${esc(u.tipeRaw ?? (u.model+" "+u.trim))}</span></dd>
+        <dt>No. rangka</dt><dd class="mono">${esc(u.rangka)}</dd>
+        <dt>No. mesin</dt><dd class="mono">${esc(u.mesin)}</dd>
+        <dt>Berlaku sampai</dt><dd class="mono">${esc(u.taxUntil)} <span class="chip ${u.tax==="ACTIVE"||u.tax==="EXPIRING_SOON"?"chip-ok":"chip-warn"}">${esc(TAX_LABEL[u.tax])}</span></dd>
+      </dl>
+    </div>
+    <div class="card-note">
+      STNK adalah sumber utama untuk merk, tipe, model, dan tahun. Plat rangka dipakai sebagai
+      pembanding, bukan sebagai sumber data. Selisih di antara keduanya memunculkan peringatan,
+      tapi isi STNK tidak pernah ditimpa otomatis.
+    </div>
+  </div>`;
+}
+
+function checksCard(u,a){
+  const items = a.checks.map(c=>{
+    const chipCls = c.verdict==="PASS" ? "chip-ok" : c.verdict==="NEEDS_REVIEW" ? "chip-warn" : "chip-blocker";
+    let diff = "";
+    if(c.a && c.b && (c.verdict!=="PASS" || c.normApplied)){
+      const chars = diffChars(c.a, c.b);
+      diff = `
+        <div class="diff">
+          <span class="diff-label">STNK</span>
+          <span class="diff-chars">${esc(c.a)}</span>
+          <span class="diff-label">Plat</span>
+          <span class="diff-chars">${chars.map(x=>
+            x.d==="same" ? esc(x.c) : `<i data-d="${x.d}">${esc(x.c)}</i>`).join("")}</span>
+        </div>`;
+    }
+    return `
+      <div class="check" data-sev="${c.sev}">
+        <div class="check-top">
+          <span class="check-name">${esc(c.name)}</span>
+          <span style="display:flex;gap:.3rem;flex-wrap:wrap">
+            ${c.normApplied?`<span class="chip chip-warn">cocok setelah penyesuaian huruf</span>`:""}
+            <span class="chip ${chipCls}">${esc(VERDICT_LABEL[c.verdict])}</span>
+            <span class="chip chip-neutral">${esc(SEV_LABEL[c.sev])}</span>
+          </span>
+        </div>
+        <div class="check-msg">${c.msg}</div>
+        ${diff}
+      </div>`;
+  }).join("");
+
+  return `
+  <div class="card">
+    <div class="card-head"><h3>Pemeriksaan silang</h3><span class="eyebrow">lapisan anti-kecurangan</span></div>
+    <div class="card-body"><div class="checks">${items}</div></div>
+    <div class="card-note">
+      Pemeriksaan tidak pernah memperbaiki data sendiri. Hasilnya berupa status dan tingkat
+      keparahan, dan tindak lanjutnya diputuskan penilai.
+    </div>
+  </div>`;
+}
+
+function gradeCard(u,a){
+  const g = a.grade;
+  const rows = g.rows.map(r=>`
+    <tr>
+      <td>${esc(PANEL_LABEL[r.panel] ?? r.panel)}</td>
+      <td>${esc(DAMAGE_LABEL[r.type])}</td>
+      <td class="n"><span class="sev" data-s="${r.sev}">${r.sev}</span></td>
+      <td class="n">${r.base}</td>
+      <td class="n">×${r.pw.toFixed(2)}</td>
+      <td class="n">×${r.am.toFixed(2)}</td>
+      <td class="n"><b>${r.points.toFixed(1)}</b></td>
+    </tr>`).join("");
+
+  const downgrades = g.applied.length ? `
+    <div class="gate" style="margin-top:.8rem;border-color:var(--warn);background:var(--warn-soft)">
+      <h4 style="color:var(--warn)">Grade diturunkan otomatis</h4>
+      <ul>${g.applied.map(r=>`<li>${esc(r.why)}, maksimal grade <b>${r.cap}</b>.</li>`).join("")}</ul>
+      <p style="font-size:var(--step--1);color:var(--ink-2);margin-top:.5rem;line-height:1.55">
+        Skor mentah masuk band <b>${g.pre}</b>, lalu aturan di atas menurunkannya ke <b>${g.label}</b>.
+        Aturan ini menangkap hal yang tidak bisa ditangkap skor: satu temuan struktural berat tidak
+        boleh tertutup rata-rata oleh mobil yang selebihnya bersih.
+      </p>
+    </div>` : "";
+
+  return `
+  <div class="card">
+    <div class="card-head">
+      <h3>Grade eksterior</h3>
+      <span style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span class="chip chip-warn">bobot belum final</span>
+        <span class="grade" data-g="${g.label}">${g.label}</span>
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Panel</th><th>Kerusakan</th><th class="n">Tkt</th><th class="n">Poin</th>
+                <th class="n">Bobot</th><th class="n">Area</th><th class="n">Total</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr><td colspan="6">Skor kerusakan, band ${g.pre}${g.pre!==g.label?`, diturunkan ke ${g.label}`:""}</td>
+                <td class="n">${g.score.toFixed(1)}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      ${downgrades}
+    </div>
+    <div class="card-note">
+      ${esc(g.band.desc)}. Setiap poin bisa ditelusuri ke satu temuan. Grade hasil sistem dan grade
+      final disimpan terpisah, dan perubahan oleh penilai membuat catatan baru dengan alasan wajib.
+    </div>
+  </div>`;
+}
+
+function checklistCard(u,a){
+  const items = Object.keys(CHECKLIST_LABEL).map(k=>{
+    const flagged = k in (u.checklist||{});
+    return `
+      <tr>
+        <td>${esc(CHECKLIST_LABEL[k])}</td>
+        <td><span class="chip ${flagged?"chip-blocker":"chip-ok"}">${flagged?"DITANDAI":"OK"}</span></td>
+        <td style="color:var(--muted)">${flagged?esc(u.checklist[k]):"Tidak ada catatan"}</td>
+      </tr>`;
+  }).join("");
+
+  return `
+  <div class="card">
+    <div class="card-head"><h3>Checklist non-visual</h3><span class="eyebrow">wajib · syarat persetujuan</span></div>
+    <div class="card-body tbl-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>Status</th><th>Catatan inspektur</th></tr></thead>
+        <tbody>${items}</tbody>
+      </table>
+    </div>
+    <div class="card-note">
+      Penilaian dari foto tidak bisa melihat bekas banjir, perbaikan rangka, kondisi mesin dan
+      transmisi, atau odometer yang diputar. Tanpa checklist ini, unit yang rusak secara mekanis
+      akan kemahalan terus-menerus.
+    </div>
+  </div>`;
+}
+
+function priceCard(u,a,caps){
+  if(!caps.price){
+    return `
+    <div class="card">
+      <div class="card-head"><h3>Harga</h3><span class="eyebrow">dibatasi peran</span></div>
+      <div class="card-body">
+        <div class="locked">
+          <span class="eyebrow">Tidak tersedia untuk peran Inspektur</span>
+          <p>
+            Inspektur yang tahu harga yang sedang dituju sebuah unit punya insentif untuk
+            menggeser laporan kerusakannya ke arah harga itu. Karena itu data harga tidak
+            dikirim sama sekali ke perangkat inspektur.
+          </p>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(!a.priceable){
+    return `
+    <div class="card">
+      <div class="card-head"><h3>Harga</h3><span class="eyebrow">belum dihitung</span></div>
+      <div class="card-body">
+        <div class="gate">
+          <h4>Harga belum bisa dihitung</h4>
+          <ul>
+            <li>Kolom tipe di STNK (<span class="mono">${esc(u.tipeRaw)}</span>) tidak cocok dengan katalog.</li>
+            <li>STNK tidak mencatat transmisi, jadi varian tidak bisa disimpulkan.</li>
+            <li>Penilai harus memilih varian secara manual sebelum harga dihitung.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card-note">
+        Beda trim dan beda transmisi menggeser harga cukup jauh, jadi menebak varian berarti
+        salah arah sejak awal.
+      </div>
+    </div>`;
+  }
+
+  const p = a.price;
+  const lo = p.p30, hi = p.p70, span = Math.max(1, hi-lo);
+  const pct = v => Math.max(0, Math.min(100, ((v-lo)/span)*100));
+
+  return `
+  <div class="card">
+    <div class="card-head">
+      <h3>Harga dasar lelang</h3>
+      <span style="display:flex;gap:.35rem;flex-wrap:wrap">
+        <span class="chip chip-warn">keyakinan sedang</span>
+        <span class="chip chip-neutral">nilai sisa ${(u.anchor*100).toFixed(0)}%</span>
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="price-stack">
+        <div class="price-line">
+          <span class="lbl"><b>Harga pasar lelang</b>unit ini pada kondisi rata-rata</span>
+          <span class="amt num">${rp(p.amp)}</span>
+        </div>
+        <div class="price-line is-deduct">
+          <span class="lbl"><b>Potongan kondisi</b>selisih dengan kondisi sebenarnya</span>
+          <span class="amt num">−${rp(p.deduction)}</span>
+        </div>
+        <div class="price-line is-final">
+          <span class="lbl"><b>Harga dasar</b>batas bawah untuk memulai lelang</span>
+          <span class="amt num">${rp(p.base)}</span>
+        </div>
+      </div>
+
+      <div class="band">
+        <span class="eyebrow">Rentang harga</span>
+        <div class="band-track">
+          <div class="band-rail"></div>
+          <div class="band-fill" style="left:0%;right:0%"></div>
+          <div class="band-pin" data-k="base" style="left:${pct(p.p30)}%"></div>
+          <div class="band-pin" style="left:${pct(p.p50)}%"></div>
+          <div class="band-pin" style="left:${pct(p.p70)}%"></div>
+          <div class="band-tick" style="left:0%;transform:none"><b>Konservatif</b>${rpJt(p.p30)}</div>
+          <div class="band-tick" style="left:${pct(p.p50)}%"><b>Tengah</b>${rpJt(p.p50)}</div>
+          <div class="band-tick" style="left:100%;transform:translateX(-100%);text-align:right"><b>Optimis</b>${rpJt(p.p70)}</div>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:1.1rem">
+        <b>Kenapa harga dasar diambil dari batas konservatif.</b>
+        Menentukan harga lantai itu keputusan risiko, bukan tebakan nilai tengah. Perkiraan tengah
+        akan tepat separuh waktu dan kelewat tinggi separuh waktu, dan yang kelewat tinggi berujung
+        tidak laku: ada biaya jadwal ulang dan unit makin tua di pool.
+      </div>
+    </div>
+    <div class="card-note">
+      Potongan kondisi dihitung sebagai selisih antara harga pada kondisi rata-rata dan harga pada
+      kondisi sebenarnya, bukan diambil dari tabel potongan. Angkanya jadi bisa ditelusuri sampai
+      ke temuan kerusakan yang menyebabkannya.
+    </div>
+  </div>`;
+}
+
+function approvalCard(u,a,caps,st){
+  const blocked = a.blockers.length>0;
+  const decided = state.decisions.has(u.code);
+
+  const gate = blocked ? `
+    <div class="gate">
+      <h4>Persetujuan diblokir, ${a.blockers.length} temuan penghambat</h4>
+      <ul>${a.blockers.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>
+    </div>` : `
+    <div class="gate" style="border-color:var(--ok);background:var(--ok-soft)">
+      <h4 style="color:var(--ok)">Tidak ada penghambat</h4>
+      <ul><li>Semua pemeriksaan silang dan item checklist lolos.</li></ul>
+    </div>`;
+
+  let controls;
+  if(!caps.approve){
+    controls = `<p style="font-size:var(--step--1);color:var(--muted);line-height:1.55">
+      Peran <b>${ROLE_LABEL[state.role]}</b> tidak bisa menyetujui. Pemisahan tugas ini disengaja:
+      orang yang bisa mengubah grade tidak boleh jadi orang yang menandatangani harga hasilnya.</p>`;
+  } else {
+    controls = `
+      <div class="actions">
+        <button class="btn btn-primary" data-act="approve" data-code="${u.code}" ${blocked||st==="APPROVED"?"disabled":""}>
+          ${st==="APPROVED"?"Sudah disetujui":"Setujui harga dasar"}
+        </button>
+        <button class="btn" data-act="reject" data-code="${u.code}" ${st==="REJECTED"?"disabled":""}>Tolak</button>
+        ${decided?`<button class="btn" data-act="undo" data-code="${u.code}">Batalkan keputusan</button>`:""}
+        ${blocked?`<span style="font-size:var(--step--1);color:var(--blocker)">Selesaikan penghambat dulu.</span>`:""}
+      </div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="card-head"><h3>Persetujuan</h3><span class="eyebrow">${esc(STATUS_LABEL[st])}</span></div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:.9rem">
+      ${gate}
+      ${controls}
+    </div>
+    <div class="card-note">
+      Tidak ada harga yang terbit tanpa persetujuan. Setiap perubahan status dicatat lengkap dengan
+      daftar pemeriksaan yang dievaluasi saat itu, termasuk ketika daftarnya kosong.
+    </div>
+  </div>`;
+}
+
+function logCard(){
+  const items = state.log.length ? state.log.map(e=>`
+    <li>
+      <time>${e.t}</time>
+      <span><b>${esc(e.action)}</b> <span class="who">· ${esc(e.who)}</span><br>${esc(e.detail)}</span>
+    </li>`).join("")
+    : `<li><span style="color:var(--muted)">Belum ada aktivitas di sesi ini. Buka data pemilik atau setujui satu unit untuk melihat pencatatannya.</span></li>`;
+
+  return `
+  <div class="card">
+    <div class="card-head"><h3>Jejak aktivitas</h3><span class="eyebrow">tidak bisa diubah</span></div>
+    <div class="card-body"><ul class="log">${items}</ul></div>
+    <div class="card-note">
+      Catatan aktivitas tidak bisa diubah atau dihapus. Log hanya mencatat bahwa sebuah data
+      pemilik dibuka, tidak pernah isinya.
+    </div>
+  </div>`;
+}
+
+/* ==========================================================================
+   Intake
+   ========================================================================== */
+const CAPTURES = [
+  {id:"vin",    title:"Plat no. rangka",   sharp:140, hint:"Batas ketajamannya lebih ketat daripada foto bodi karena nomornya harus terbaca."},
+  {id:"stnk",   title:"STNK tampak depan", sharp:130, hint:"Panel pajak harus terlihat penuh. Ini satu-satunya sumber status pajak."},
+  {id:"odo",    title:"Odometer",          sharp:120, hint:"Penentu harga paling kuat setelah usia kendaraan. Wajib, tidak boleh dilewat."},
+  {id:"engine", title:"No. mesin",         sharp:140, hint:"Dicocokkan dengan nomor mesin yang tertulis di STNK."}
+];
+
+/* Quality gate thresholds. Same figures the inspector app enforces. */
+const GATE = {
+  minLongEdge:1280, minShortEdge:960, minMegapixels:1.2,
+  minLuminance:45, maxLuminance:235,
+  maxGlareShare:0.12, glareLevel:245,
+  analysisMaxEdge:640
+};
+
+const intake = {shots:new Map(), online:false, busy:false};
+
+function loadImage(url){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=>resolve(img);
+    img.onerror = ()=>reject(new Error("Gambar tidak dapat dibaca"));
+    img.src = url;
+  });
+}
+
+/**
+ * Measure the photo the inspector actually took.
+ *
+ * Sharpness is the variance of the Laplacian on a downscaled greyscale copy:
+ * a focused photo has strong second derivatives at edges, a blurred one does
+ * not. Luminance and glare share come from the same pass, so one read of the
+ * pixel buffer covers every check.
+ */
+async function measurePhoto(file){
+  const url = URL.createObjectURL(file);
+  const img = await loadImage(url);
+  const width = img.naturalWidth, height = img.naturalHeight;
+
+  const scale = Math.min(1, GATE.analysisMaxEdge / Math.max(width, height));
+  const w = Math.max(3, Math.round(width * scale));
+  const h = Math.max(3, Math.round(height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", {willReadFrequently:true});
+  ctx.drawImage(img, 0, 0, w, h);
+  const {data} = ctx.getImageData(0, 0, w, h);
+
+  const gray = new Float32Array(w*h);
+  let lumSum = 0, brightCount = 0;
+  for(let i=0, p=0; i<data.length; i+=4, p++){
+    const g = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    gray[p] = g;
+    lumSum += g;
+    if(g >= GATE.glareLevel) brightCount++;
+  }
+
+  let sum = 0, sumSq = 0, n = 0;
+  for(let y=1; y<h-1; y++){
+    for(let x=1; x<w-1; x++){
+      const i = y*w + x;
+      const lap = gray[i-w] + gray[i+w] + gray[i-1] + gray[i+1] - 4*gray[i];
+      sum += lap; sumSq += lap*lap; n++;
+    }
+  }
+  const mean = sum/n;
+
+  return {
+    url, width, height,
+    megapixels: (width*height)/1e6,
+    sharpness: Math.max(0, sumSq/n - mean*mean),
+    luminance: lumSum/(w*h),
+    glare: brightCount/(w*h),
+    sizeKB: Math.round(file.size/1024),
+    fileName: file.name || "foto.jpg"
+  };
+}
+
+/** Returns the list of failed checks, each with the measured and required value. */
+function evaluatePhoto(capture, m){
+  const fails = [];
+  const longEdge = Math.max(m.width, m.height), shortEdge = Math.min(m.width, m.height);
+
+  if(longEdge < GATE.minLongEdge || shortEdge < GATE.minShortEdge || m.megapixels < GATE.minMegapixels){
+    fails.push({key:"res", code:"Resolusi kurang",
+      msg:`${m.width}×${m.height} px. Minimal ${GATE.minLongEdge}×${GATE.minShortEdge} px.`});
+  }
+  if(m.luminance < GATE.minLuminance){
+    fails.push({key:"lum", code:"Terlalu gelap",
+      msg:`Tingkat cahaya ${m.luminance.toFixed(0)}, minimal ${GATE.minLuminance}. Cari tempat yang lebih terang.`});
+  } else if(m.luminance > GATE.maxLuminance){
+    fails.push({key:"lum", code:"Terlalu terang",
+      msg:`Tingkat cahaya ${m.luminance.toFixed(0)}, maksimal ${GATE.maxLuminance}. Hindari cahaya langsung.`});
+  }
+  if(m.glare > GATE.maxGlareShare){
+    fails.push({key:"glare", code:"Silau",
+      msg:`${(m.glare*100).toFixed(0)}% area memantul cahaya, batas ${(GATE.maxGlareShare*100).toFixed(0)}%. Ubah sudut pengambilan.`});
+  }
+  if(m.sharpness < capture.sharp){
+    fails.push({key:"sharp", code:"Foto buram",
+      msg:`Ketajaman ${m.sharpness.toFixed(0)}, minimal ${capture.sharp} untuk foto ini. Tahan HP lebih stabil lalu ulangi.`});
+  }
+  return fails;
+}
+
+function renderIntake(){
+  document.getElementById("captures").innerHTML = CAPTURES.map((c,i)=>{
+    const s = intake.shots.get(c.id);
+    const m = s?.metrics;
+    const failed = s ? s.fails.map(f=>f.key) : [];
+
+    let st = "empty";
+    let frame = `<div class="cap-guide"></div>
+      <div class="cap-state">Ketuk <b>Ambil foto</b><br><span style="font-size:.7rem">Kamera belakang</span></div>`;
+
+    if(s){
+      st = s.accepted ? "ok" : "fail";
+      const badge = s.overridden ? "flag" : String(s.accepted);
+      const badgeText = s.overridden ? "Ditandai" : s.accepted ? "Diterima" : "Ditolak";
+      frame = `
+        <img src="${s.metrics.url}" alt="Pratinjau ${esc(c.title)}">
+        <span class="cap-badge" data-ok="${badge}">${badgeText}</span>
+        ${s.accepted ? "" : `<div class="cap-fail"><b>${esc(s.fails[0].code)}</b>${esc(s.fails[0].msg)}</div>`}`;
+    }
+
+    const metrics = m ? `
+      <div class="cap-metrics">
+        <div class="cap-metric" data-ok="${!failed.includes("sharp")}">
+          <b>${m.sharpness.toFixed(0)}</b><span>ketajaman</span></div>
+        <div class="cap-metric" data-ok="${!failed.includes("lum")}">
+          <b>${m.luminance.toFixed(0)}</b><span>cahaya</span></div>
+        <div class="cap-metric" data-ok="${!failed.includes("glare")}">
+          <b>${(m.glare*100).toFixed(0)}%</b><span>silau</span></div>
+        <div class="cap-metric" data-ok="${!failed.includes("res")}">
+          <b>${m.megapixels.toFixed(1)} MP</b><span>${m.width}×${m.height}</span></div>
+      </div>` : "";
+
+    const actions = s && !s.accepted
+      ? `<div class="cap-actions">
+           <button class="btn" data-act="shoot" data-cap="${c.id}">Ambil ulang</button>
+           <button class="btn" data-act="override" data-cap="${c.id}" title="Foto akan ditandai untuk ditinjau penilai">Pakai tetap</button>
+         </div>`
+      : `<button class="btn" data-act="shoot" data-cap="${c.id}">${s ? "Ambil ulang" : "Ambil foto"}</button>`;
+
+    const state = s?.accepted
+      ? `<div style="font-size:.66rem;color:var(--muted)">${s.synced ? "Sudah terkirim" : "Menunggu koneksi"} · ${m.sizeKB.toLocaleString("id-ID")} KB</div>`
+      : "";
+
+    return `
+      <div class="cap">
+        <div class="cap-frame" data-st="${st}">${frame}</div>
+        <div class="cap-body">
+          <div class="cap-title">${i+1}. ${esc(c.title)}</div>
+          <div class="cap-hint">${esc(c.hint)}</div>
+          ${metrics}
+          ${state}
+          ${actions}
+          <input class="file-input" type="file" accept="image/*" capture="environment"
+                 id="file-${c.id}" data-cap="${c.id}" tabindex="-1" aria-hidden="true">
+        </div>
+      </div>`;
+  }).join("");
+
+  const accepted = [...intake.shots.values()].filter(s=>s.accepted);
+  const synced = accepted.filter(s=>s.synced).length;
+
+  document.getElementById("netdot").dataset.on = intake.online;
+  document.getElementById("netlabel").textContent = intake.online
+    ? (accepted.length ? `Tersambung · ${synced} dari ${accepted.length} foto terkirim` : "Tersambung")
+    : (accepted.length ? `Tidak ada koneksi · ${accepted.length} foto tersimpan di perangkat` : "Tidak ada koneksi");
+  document.getElementById("toggle-net").textContent = intake.online ? "Putuskan jaringan" : "Sambungkan jaringan";
+  document.getElementById("captures").classList.toggle("busy", intake.busy);
+}
+
+/* ==========================================================================
+   Rubric editor
+   ========================================================================== */
+function renderPoints(){
+  const header = `<span></span><span class="hd">Ringan</span><span class="hd">Sedang</span><span class="hd">Berat</span>`;
+  document.getElementById("points").innerHTML = header + Object.keys(RUBRIC.basePoints).map(type=>`
+    <label for="pt-${type}-1">${esc(DAMAGE_LABEL[type])}</label>
+    ${[1,2,3].map(s=>`
+      <input type="number" id="pt-${type}-${s}" min="0" max="99" step="1"
+             value="${RUBRIC.basePoints[type][s]}" data-type="${type}" data-sev="${s}"
+             aria-label="${esc(DAMAGE_LABEL[type])} tingkat ${s}">`).join("")}
+    <span class="dmg-note">${esc(DAMAGE_NOTE[type])}</span>
+  `).join("");
+}
+
+function renderImpact(){
+  document.getElementById("impact").innerHTML = UNITS.map(u=>{
+    const g = computeGrade(u.damages);
+    const was = state.baseline.get(u.code);
+    let shift = `<span style="color:var(--muted)">tetap</span>`;
+    if(was && was.label!==g.label){
+      const dir = BAND_ORDER.indexOf(g.label) > BAND_ORDER.indexOf(was.label) ? "worse" : "better";
+      shift = `<span class="shift" data-dir="${dir}">${was.label} ke ${g.label}</span>`;
+    } else if(was && Math.abs(was.score-g.score)>0.05){
+      const d = g.score - was.score;
+      shift = `<span style="color:var(--muted);font-variant-numeric:tabular-nums">${d>0?"+":""}${d.toFixed(1)} poin</span>`;
+    }
+    return `<tr>
+      <td class="mono" style="font-size:.7rem">${u.code.replace("CR-26-","")}</td>
+      <td>${esc(u.merk)} ${esc(u.model)}</td>
+      <td class="n">${g.score.toFixed(1)}</td>
+      <td><span class="grade" data-g="${g.label}" style="width:1.35rem;height:1.35rem;font-size:.75rem">${g.label}</span></td>
+      <td>${shift}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("bandnote").innerHTML =
+    "Batas skor tiap grade: " + RUBRIC.bands.map(b=>
+      `<b>${b.label}</b> sampai ${b.max ?? "tak terbatas"}`).join(" · ") +
+    ". Penurunan otomatis dijalankan setelah grade ditentukan, dan hanya bisa memperburuk, tidak pernah memperbaiki.";
+}
+
+/* ==========================================================================
+   Wiring
+   ========================================================================== */
+function renderAll(){
+  renderStats();
+  renderQueue();
+  renderDossier();
+  renderImpact();
+}
+
+function setView(v){
+  state.view = v;
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected", String(t.dataset.view===v)));
+  document.querySelectorAll(".view").forEach(s=>{ s.hidden = (s.id !== "view-"+v); });
+  if(v==="intake") renderIntake();
+  if(v==="rubrik") renderImpact();
+}
+
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>setView(t.dataset.view)));
+
+document.getElementById("role").addEventListener("change", e=>{
+  state.role = e.target.value;
+  state.unmasked.clear();
+  renderAll();
+  // Intake is the inspector's screen, so land there when the role switches.
+  if(state.role === "inspector") setView("intake");
+});
+
+document.getElementById("filter").addEventListener("change", e=>{
+  state.filter = e.target.value;
+  renderQueue();
+});
+
+document.getElementById("theme").addEventListener("click", ()=>{
+  const root = document.documentElement;
+  const cur = root.getAttribute("data-theme");
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  root.setAttribute("data-theme", cur ? (cur==="dark"?"light":"dark") : (systemDark?"light":"dark"));
+});
+
+document.getElementById("queue").addEventListener("click", e=>{
+  const row = e.target.closest(".row");
+  if(!row) return;
+  state.selected = row.dataset.code;
+  document.body.dataset.mobile = "detail";
+  renderQueue();
+  renderDossier();
+});
+
+document.getElementById("dossier").addEventListener("click", e=>{
+  const btn = e.target.closest("[data-act]");
+  if(!btn) return;
+  const act = btn.dataset.act;
+  const code = btn.dataset.code;
+  const u = UNITS.find(x=>x.code===code);
+
+  if(act==="back"){ document.body.dataset.mobile = "list"; return; }
+
+  if(act==="unmask"){
+    if(state.unmasked.has(code)){
+      state.unmasked.delete(code);
+    } else {
+      state.unmasked.add(code);
+      addLog("Data pemilik dibuka", `${code} · nama dan alamat · akses tercatat`);
+    }
+    renderDossier();
+    return;
+  }
+
+  if(act==="approve"){
+    state.decisions.set(code,"APPROVED");
+    addLog("Harga dasar disetujui", `${code} · tidak ada temuan penghambat · status menjadi Disetujui`);
+    renderAll();
+    return;
+  }
+  if(act==="reject"){
+    state.decisions.set(code,"REJECTED");
+    addLog("Unit ditolak", `${code} · status menjadi Ditolak · unit bisa dikerjakan ulang`);
+    renderAll();
+    return;
+  }
+  if(act==="undo"){
+    state.decisions.delete(code);
+    addLog("Keputusan dibatalkan", `${code} · status kembali ke ${STATUS_LABEL[u.status]}`);
+    renderAll();
+    return;
+  }
+});
+
+const capturesEl = document.getElementById("captures");
+
+capturesEl.addEventListener("click", e=>{
+  const btn = e.target.closest("[data-act]");
+  if(!btn) return;
+  const id = btn.dataset.cap;
+
+  if(btn.dataset.act === "shoot"){
+    // On a phone this opens the rear camera directly. On a desktop browser
+    // `capture` is ignored and the file picker opens instead.
+    document.getElementById("file-"+id)?.click();
+    return;
+  }
+
+  if(btn.dataset.act === "override"){
+    const s = intake.shots.get(id);
+    if(!s) return;
+    s.accepted = true;
+    s.overridden = true;
+    s.synced = intake.online;
+    renderIntake();
+  }
+});
+
+capturesEl.addEventListener("change", async e=>{
+  const input = e.target.closest("input[type='file']");
+  if(!input || !input.files?.length) return;
+  const id = input.dataset.cap;
+  const capture = CAPTURES.find(c=>c.id===id);
+  const file = input.files[0];
+  input.value = "";
+
+  intake.busy = true;
+  renderIntake();
+
+  try {
+    const metrics = await measurePhoto(file);
+    const fails = evaluatePhoto(capture, metrics);
+
+    const previous = intake.shots.get(id);
+    if(previous) URL.revokeObjectURL(previous.metrics.url);
+
+    intake.shots.set(id, {
+      metrics,
+      fails,
+      accepted: fails.length === 0,
+      overridden: false,
+      synced: fails.length === 0 && intake.online
+    });
+  } catch {
+    const previous = intake.shots.get(id);
+    if(previous) URL.revokeObjectURL(previous.metrics.url);
+    intake.shots.delete(id);
+    window.alert("Berkas itu bukan gambar yang bisa dibaca. Coba foto lain.");
+  } finally {
+    intake.busy = false;
+    renderIntake();
+  }
+});
+
+document.getElementById("toggle-net").addEventListener("click", ()=>{
+  intake.online = !intake.online;
+  intake.shots.forEach(s=>{ if(s.accepted) s.synced = intake.online; });
+  renderIntake();
+});
+
+document.getElementById("reset-intake").addEventListener("click", ()=>{
+  intake.shots.forEach(s=>URL.revokeObjectURL(s.metrics.url));
+  intake.shots.clear();
+  intake.online = false;
+  renderIntake();
+});
+
+document.getElementById("points").addEventListener("input", e=>{
+  const inp = e.target.closest("input[data-type]");
+  if(!inp) return;
+  const v = parseInt(inp.value,10);
+  if(Number.isNaN(v) || v<0) return;
+  RUBRIC.basePoints[inp.dataset.type][Number(inp.dataset.sev)] = v;
+  renderImpact();
+  renderStats();
+  renderQueue();
+  renderDossier();
+});
+
+/* Boot */
+UNITS.forEach(u=>state.baseline.set(u.code, computeGrade(u.damages)));
+document.body.dataset.mobile = "list";
+renderPoints();
+renderAll();
+setView("dasbor");
+</script>

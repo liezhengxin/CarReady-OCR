@@ -1,0 +1,296 @@
+# =========================================================================
+# PRICING ENGINE CONFIGURATION (§8)
+# =========================================================================
+# Two-layer design:
+#   Layer 1  Residual value anchor  - ratio of realised auction price to
+#            new-car OTR, aggregated with shrinkage. Keeps rare models sane
+#            and is the fallback when ML support is thin.
+#   Layer 2  LightGBM quantile regression on log price, with the Layer 1
+#            anchor as a feature.
+# =========================================================================
+
+version: "1.0.0"
+
+# -------------------------------------------------------------------------
+# Quantiles
+# -------------------------------------------------------------------------
+# AMP        = P50 prediction, unit in REFERENCE condition
+# Base price = P30 prediction, unit in ACTUAL condition
+# Deduction  = AMP - Base price  (a derived display value, never an input)
+#
+# Using P30 rather than P50 for the base price is a deliberate risk posture:
+# setting an auction floor is a risk decision, not a point forecast. Whether
+# P30 is the right posture, and who owns that decision, is OPEN_ITEMS.md #5.
+# -------------------------------------------------------------------------
+
+quantiles:
+  train: [0.3, 0.5, 0.7]
+  amp_quantile: 0.5
+  base_price_quantile: 0.3
+  band_lower_quantile: 0.3
+  band_upper_quantile: 0.7
+
+# -------------------------------------------------------------------------
+# Reference condition
+# -------------------------------------------------------------------------
+# The counterfactual used for AMP. "What would this unit fetch at typical
+# condition for its age and mileage." Not "showroom new" - that would inflate
+# the displayed deduction into a meaningless number.
+#
+# The reference grade is expressed as a damage score, not a grade label, so it
+# survives a change to the grading scale (OPEN_ITEMS.md #1).
+# -------------------------------------------------------------------------
+
+reference_condition:
+  damage_score: 12.0            # ~ mid Grade A under the placeholder rubric
+  grade_label: "A"              # placeholder-rubric label, for display only
+  celah_panel_present: false
+  rust_present: false
+  damage_count: 2
+  # Non-visual checklist items are held at "ok" in the reference counterfactual
+  # - the deduction should reflect condition, not documentation problems.
+  non_visual_all_ok: true
+
+# -------------------------------------------------------------------------
+# Layer 1 - residual value anchor
+# -------------------------------------------------------------------------
+# anchor(variant, model_year) = mean(realised_price / otr_price_at_sale)
+#
+# Shrunk toward progressively coarser parents when the cell is thin:
+#   variant+year  ->  model+year  ->  model  ->  segment+age  ->  global age
+#
+# James-Stein style: weight = n / (n + k). k is the shrinkage constant; at
+# n == k the estimate is half own-cell, half parent.
+# -------------------------------------------------------------------------
+
+residual_anchor:
+  enabled: true
+  shrinkage_k: 12
+  min_cell_count: 3             # below this, the cell contributes nothing
+  hierarchy:
+    - [variant_id, model_year]
+    - [model_id, model_year]
+    - [model_id]
+    - [segment, age_years]
+    - [age_years]
+  # Trim before aggregating - a single mis-keyed price should not move an
+  # anchor that a hundred units depend on.
+  winsorise_quantiles: [0.02, 0.98]
+  # Anchors are recomputed on this cadence and versioned; a price result
+  # records which anchor version it used.
+  recompute_cron: "0 3 * * *"
+
+# -------------------------------------------------------------------------
+# Layer 2 - LightGBM
+# -------------------------------------------------------------------------
+
+lightgbm:
+  objective: quantile
+  target_transform: log         # train on log(price), invert on predict
+  params:
+    learning_rate: 0.05
+    num_leaves: 31
+    min_data_in_leaf: 40
+    feature_fraction: 0.85
+    bagging_fraction: 0.85
+    bagging_freq: 1
+    lambda_l2: 1.0
+    max_depth: -1
+    verbosity: -1
+  num_boost_round: 1500
+  early_stopping_rounds: 100
+  seed: 20260101
+
+# -------------------------------------------------------------------------
+# Baselines (§8.2)
+# -------------------------------------------------------------------------
+# OLS / ridge on log price are trained for COMPARISON and EXPLAINABILITY ONLY.
+# They are never served as the production model.
+#
+# If LightGBM does not clearly beat the baseline on holdout, that is a finding
+# to report in MODEL_CARD.md - not a result to bury.
+# -------------------------------------------------------------------------
+
+baselines:
+  enabled: true
+  models: [ols, ridge]
+  ridge_alpha: 1.0
+  # Relative improvement in holdout MAE that LightGBM must achieve over the
+  # best baseline for the run to be marked `beats_baseline: true`.
+  required_improvement_pct: 5.0
+
+# -------------------------------------------------------------------------
+# Censoring - unsold units (§8.3)
+# -------------------------------------------------------------------------
+# Units that did not sell are LEFT-CENSORED observations: we know the true
+# market value was BELOW the reserve, we do not know by how much. Dropping
+# them biases the model upward and inflates floor prices - exactly the failure
+# mode this system exists to avoid.
+#
+# Implemented approach:
+#   1. Censored rows enter training with a reduced sample weight and their
+#      reserve price as an upper bound on the target.
+#   2. An auxiliary classifier P(sells | price, features) is trained on all
+#      rows and used to report sell-probability alongside the price band.
+#
+# Any change to this scheme must be justified in writing in MODEL_CARD.md.
+# -------------------------------------------------------------------------
+
+censoring:
+  include_unsold: true          # do not change this to false
+  method: weighted_bound        # weighted_bound | tobit | ipcw
+  # Weight applied to a censored observation relative to a sold one.
+  censored_sample_weight: 0.45
+  # For a censored row the target is imputed at the reserve price scaled down
+  # by this factor - a deliberately conservative stand-in for "below reserve".
+  censored_target_factor: 0.93
+  # Rows with no bid at all carry less information than rows that attracted
+  # bids but fell short of reserve.
+  no_bid_sample_weight: 0.30
+  sell_probability_model:
+    enabled: true
+    objective: binary
+    params:
+      learning_rate: 0.05
+      num_leaves: 24
+      min_data_in_leaf: 60
+      verbosity: -1
+    num_boost_round: 600
+
+# -------------------------------------------------------------------------
+# Features
+# -------------------------------------------------------------------------
+
+features:
+  numeric:
+    - age_years
+    - odometer_km
+    - odometer_km_per_year
+    - engine_cc
+    - residual_anchor_ratio      # Layer 1 output - the key feature
+    - otr_price_at_auction
+    - damage_score
+    - damage_count
+    - months_to_tax_expiry
+    - auction_month_index
+    - market_index
+    - historical_bidder_count
+    - historical_sell_through_rate
+  categorical:
+    - variant_id
+    - transmission
+    - body_type
+    - grade_label
+    - tax_status
+    - colour
+    - auction_location
+    - seller_type
+  boolean:
+    - celah_panel_present
+    - rust_present
+    - repaint_present
+    - is_common_colour
+    - variant_unresolved
+    - non_visual_flagged
+  # Damage summary features, generated per panel group (§8.1).
+  per_panel_group:
+    groups: [front, rear, left, right, top, glass, lighting, wheels]
+    aggregates: [count, weighted_severity]
+
+  # Colours above this share of the historical population are "common".
+  common_colour_min_share: 0.06
+
+# -------------------------------------------------------------------------
+# Data sufficiency tiers
+# -------------------------------------------------------------------------
+# Drives which layer serves the price and how confidence is reported. Counted
+# as comparable historical units for the (variant, model_year) cell within
+# `lookback_months`.
+# -------------------------------------------------------------------------
+
+data_sufficiency:
+  lookback_months: 24
+  tiers:
+    - { tier: RICH,       min_comparables: 40, source: lgbm }
+    - { tier: MODERATE,   min_comparables: 12, source: lgbm }
+    - { tier: THIN,       min_comparables: 3,  source: lgbm_blended_with_anchor }
+    - { tier: COLD_START, min_comparables: 0,  source: anchor_with_coldstart_table }
+  # Blend weight for THIN: this share from the anchor, remainder from LightGBM.
+  thin_anchor_weight: 0.45
+
+# -------------------------------------------------------------------------
+# Confidence degradation (§8.5)
+# -------------------------------------------------------------------------
+# Confidence starts at HIGH and is knocked down one level per triggered
+# condition, floored at LOW. Every trigger is listed on the price result so
+# the approver sees exactly why confidence is what it is.
+# -------------------------------------------------------------------------
+
+confidence:
+  start: HIGH
+  degrade_when:
+    - { condition: variant_unresolved,             levels: 2 }
+    - { condition: variant_resolution_manual,      levels: 0 }
+    - { condition: data_tier_thin,                 levels: 1 }
+    - { condition: data_tier_cold_start,           levels: 2 }
+    - { condition: grading_rubric_placeholder,     levels: 1 }
+    - { condition: coldstart_deduction_table_used, levels: 1 }
+    - { condition: grade_provisional,              levels: 1 }
+    - { condition: odometer_missing,               levels: 1 }
+    - { condition: any_blocker_crosscheck,         levels: 2 }
+    - { condition: band_width_excessive,           levels: 1 }
+  # (P70 - P30) / P50 above this is an unusably wide band.
+  band_width_excessive_ratio: 0.45
+
+# -------------------------------------------------------------------------
+# Explanations
+# -------------------------------------------------------------------------
+
+explanation:
+  shap_enabled: true
+  top_n_features: 8
+  comparables:
+    count: 8
+    # Comparables are selected by nearest neighbour on (variant, year,
+    # odometer, grade) within the lookback window.
+    max_age_diff_years: 2
+    max_odometer_diff_km: 30000
+    include_unsold: true        # showing only sold comparables flatters the price
+
+# -------------------------------------------------------------------------
+# Guard rails
+# -------------------------------------------------------------------------
+# A model that returns an absurd number must fail loudly rather than publish.
+# Violations block auto-progression and force appraiser review.
+# -------------------------------------------------------------------------
+
+guard_rails:
+  min_price_idr: 5000000
+  max_price_idr: 5000000000
+  # Base price may never exceed this share of the new-car OTR price.
+  max_share_of_otr: 1.00
+  # Nor fall below this share, which would indicate a broken feature pipeline
+  # rather than a genuinely worthless unit.
+  min_share_of_otr: 0.03
+  # Predicted quantiles must be monotonic. LightGBM trains them independently,
+  # so crossing is possible and must be detected.
+  enforce_quantile_monotonicity: true
+  on_quantile_crossing: sort_and_flag   # sort_and_flag | reject
+
+# -------------------------------------------------------------------------
+# Training
+# -------------------------------------------------------------------------
+
+training:
+  # Time-based split, never random: a random split leaks future market
+  # conditions into the training set and flatters holdout metrics.
+  split: temporal
+  holdout_months: 4
+  validation_months: 3
+  min_training_rows: 2000
+  mlflow_experiment: caready-pricing
+  registered_model_name: caready-price-quantile
+  metrics: [mae, mape, rmse, pinball_loss, coverage_p30_p70]
+  # Fraction of holdout actuals that must fall inside the P30-P70 band for the
+  # band to be considered calibrated.
+  target_band_coverage: 0.40

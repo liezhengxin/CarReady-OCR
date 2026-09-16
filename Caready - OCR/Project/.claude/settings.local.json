@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(docker --version)",
+      "WebFetch(domain:caready.co.id)",
+      "WebFetch(domain:www.caready.co.id)",
+      "WebSearch",
+      "WebFetch(domain:play.google.com)"
+    ]
+  }
+}

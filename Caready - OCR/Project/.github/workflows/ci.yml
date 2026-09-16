@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "22"
+  # CI always uses the deterministic stub providers and the CSV price adapter.
+  # Nothing in CI reaches an external service.
+  ENVIRONMENT: ci
+  SYNTHETIC_DATA_MODE: "true"
+
+jobs:
+  lint-python:
+    name: Lint & type-check (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "services/api[dev]"
+      - name: Ruff lint
+        run: ruff check services packages seed
+      - name: Ruff format check
+        run: ruff format --check services packages seed
+      - name: Mypy
+        run: mypy services/api/app
+        # Type coverage is being brought up milestone by milestone; a failure
+        # here should not block an otherwise-green build yet. Remove this at M8.
+        continue-on-error: true
+
+  config-validation:
+    name: Validate business config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e "services/api[dev]"
+      - name: Config parses, versioned, and agrees with the enums
+        run: pytest services/api/tests/test_config.py -v
+
+  test-python:
+    name: Tests (Python)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: caready
+          POSTGRES_PASSWORD: caready
+          POSTGRES_DB: caready_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U caready"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://caready:caready@localhost:5432/caready_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-only-secret
+      PII_ENCRYPTION_KEYS: ci-only-encryption-passphrase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e "services/api[dev]"
+
+      - name: Apply migrations
+        working-directory: services/api
+        run: alembic upgrade head
+
+      # The baseline migration builds tables from ORM metadata (see
+      # OPEN_ITEMS #8). This is what catches divergence between the models and
+      # the migrated schema - it must stay green.
+      - name: Schema matches ORM metadata
+        working-directory: services/api
+        run: alembic check
+
+      - name: Append-only triggers are installed
+        working-directory: services/api
+        run: pytest tests/test_append_only.py -v
+
+      - name: Unit tests
+        working-directory: services/api
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-python
+          path: services/api/coverage.xml
+
+  test-seed:
+    name: Synthetic data generators
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e "services/api[dev]"
+      # Asserts determinism and the calibration bands documented in
+      # seed/README.md. A generator that drifts out of band silently changes
+      # what every downstream test is testing against.
+      - name: Generator determinism and calibration
+        run: pytest seed/tests -v
+
+  build-web:
+    name: Build (web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install
+        working-directory: apps/web
+        run: npm ci || npm install
+      - name: Type-check
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+      - name: Build
+        working-directory: apps/web
+        run: npm run build
+
+  build-images:
+    name: Build container images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: api, dockerfile: infra/docker/api.Dockerfile }
+          - { name: worker, dockerfile: infra/docker/worker.Dockerfile }
+          - { name: web, dockerfile: infra/docker/web.Dockerfile, target: runner }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target || '' }}
+          push: false
+          load: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  stack-smoke:
+    name: Compose stack smoke test
+    runs-on: ubuntu-latest
+    needs: [test-python, test-seed]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack
+        run: docker compose up -d --build postgres redis minio minio-init api
+      - name: Wait for the API
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/healthz >/dev/null 2>&1; then
+              echo "API is up"; exit 0
+            fi
+            sleep 3
+          done
+          echo "API did not become healthy"; docker compose logs api; exit 1
+      - name: Readiness
+        run: curl -fsS http://localhost:8000/readyz | tee /dev/stderr | grep -q '"status":"ready"'
+
+      # The M0 acceptance criterion: the stack comes up AND has seeded data.
+      - name: Seed synthetic data
+        run: docker compose run --rm seed python /app/seed/run_seed.py --no-images
+
+      - name: Verify seeded data is present
+        run: |
+          docker compose exec -T postgres psql -U caready -d caready -tAc \
+            "SELECT count(*) FROM auction_records" | tee /dev/stderr | \
+            awk '{ if ($1 < 12000) { print "expected >= 12000 auction records, got " $1; exit 1 } }'
+          docker compose exec -T postgres psql -U caready -d caready -tAc \
+            "SELECT count(*) FROM auction_records WHERE outcome <> 'sold'" | tee /dev/stderr | \
+            awk '{ if ($1 < 1000) { print "expected unsold units in the training set, got " $1; exit 1 } }'
+          docker compose exec -T postgres psql -U caready -d caready -tAc \
+            "SELECT count(*) FROM auction_records WHERE NOT is_synthetic" | tee /dev/stderr | \
+            awk '{ if ($1 != 0) { print "seeded rows must all be marked synthetic"; exit 1 } }'
+
+      - name: Banner discloses synthetic data
+        run: curl -fsS http://localhost:8000/api/meta/system | tee /dev/stderr | grep -q 'synthetic_data'
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

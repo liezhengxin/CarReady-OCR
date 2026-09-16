@@ -1,0 +1,202 @@
+# =========================================================================
+# CAPTURE RULES (§4.2, §7.1)
+# =========================================================================
+# Shared by the PWA (client-side quality gate) and the API (server-side
+# re-validation). The web app reads this at build time; the API reads it at
+# runtime. The client gate is a UX affordance - the server gate is the
+# enforcement point.
+# =========================================================================
+
+version: "1.0.0"
+
+# -------------------------------------------------------------------------
+# Non-negotiable capture rules
+# -------------------------------------------------------------------------
+
+rules:
+  # Camera capture only. The gallery / file picker is disabled for intake and
+  # exterior photos so an inspector cannot upload a photo taken elsewhere or
+  # at another time. Implemented as capture="environment" plus a server-side
+  # rejection of any photo whose EXIF or provenance is inconsistent.
+  camera_only: true
+  allow_gallery_upload: false
+  # Damage close-ups follow the same rule - no exceptions.
+  allow_gallery_upload_for_closeups: false
+
+  # Server stamps these; client-supplied equivalents are stored separately and
+  # never trusted for business logic.
+  server_stamped_fields:
+    - captured_at_server
+    - uploaded_by_user_id
+    - device_fingerprint
+    - client_ip
+  # GPS is captured when the device grants permission; absence is recorded,
+  # not treated as an error.
+  request_gps: true
+  gps_required: false
+
+  # Originals are immutable. A derivative is generated for display; the
+  # original is never overwritten or re-encoded in place.
+  store_original: true
+  store_derivative: true
+  derivative_max_edge_px: 1600
+  derivative_quality: 82
+  # EXIF is stripped from the derivative but preserved verbatim alongside the
+  # original for audit.
+  preserve_original_exif: true
+  strip_exif_from_derivative: true
+
+# -------------------------------------------------------------------------
+# Client-side quality gate
+# -------------------------------------------------------------------------
+# Runs before a capture is accepted into the offline queue. Rejection messages
+# are shown in Bahasa Indonesia and must be actionable - "Foto buram, ulangi",
+# not "validation failed".
+#
+# Thresholds are deliberately generous: a false rejection costs an inspector a
+# retake in the yard, but a systematically over-strict gate gets worked around.
+# -------------------------------------------------------------------------
+
+quality_gate:
+  enabled: true
+
+  # Variance of the Laplacian. Below the threshold the image is considered
+  # blurred. Values are on 0-255 greyscale, computed on the downscaled frame.
+  blur:
+    enabled: true
+    method: variance_of_laplacian
+    analysis_max_edge_px: 640
+    min_variance: 90.0
+    # Document captures need sharper text than a whole-car exterior shot.
+    min_variance_by_capture:
+      INTAKE_VIN_PLATE: 140.0
+      INTAKE_STNK_FRONT: 130.0
+      INTAKE_ODOMETER: 120.0
+      INTAKE_ENGINE_NO: 140.0
+    message_id: blur
+
+  # Overexposure / glare. Share of pixels at or above `bright_threshold`.
+  glare:
+    enabled: true
+    bright_threshold: 245
+    max_bright_pixel_share: 0.12
+    # A large contiguous blown-out region is worse than scattered highlights;
+    # flag if any single connected blown region exceeds this share.
+    max_contiguous_bright_share: 0.05
+    message_id: glare
+
+  # Underexposure. Mean luminance below this is unreadable.
+  exposure:
+    enabled: true
+    min_mean_luminance: 45
+    max_mean_luminance: 235
+    message_id: underexposed
+
+  resolution:
+    enabled: true
+    min_width_px: 1280
+    min_height_px: 960
+    min_megapixels: 1.2
+    message_id: resolution_too_low
+
+  # For VIN plate and engine number captures, require that some text-like
+  # region was detected. Prevents a photo of the wrong part of the car.
+  text_region:
+    enabled: true
+    applies_to: [INTAKE_VIN_PLATE, INTAKE_ENGINE_NO, INTAKE_STNK_FRONT, INTAKE_ODOMETER]
+    method: mser_density        # mser_density | edge_density
+    min_text_area_share: 0.015
+    message_id: no_text_region
+
+  # How many consecutive rejections before the app offers an override path.
+  # The override requires a typed reason and flags the photo for appraiser
+  # review - it does not silently accept a bad capture.
+  max_retries_before_override: 4
+  allow_override_with_reason: true
+
+# -------------------------------------------------------------------------
+# Guided overlay frames
+# -------------------------------------------------------------------------
+# Aspect ratio and guidance copy per capture type. The overlay is a fixed
+# frame the inspector aligns the subject inside; it materially improves OCR
+# hit rate and makes the exterior set comparable across units.
+# -------------------------------------------------------------------------
+
+overlays:
+  INTAKE_VIN_PLATE:
+    aspect_ratio: "16:5"
+    guide_id: vin_plate
+    hint_id: vin_plate
+  INTAKE_STNK_FRONT:
+    aspect_ratio: "3:2"
+    guide_id: document
+    hint_id: stnk_front
+    # The tax panel must be inside the frame - it is the sole source of tax
+    # status. A crop that omits it makes the capture useless.
+    note: "Panel pajak harus terlihat penuh"
+  INTAKE_ODOMETER:
+    aspect_ratio: "4:3"
+    guide_id: odometer
+    hint_id: odometer
+  INTAKE_ENGINE_NO:
+    aspect_ratio: "16:5"
+    guide_id: engine_no
+    hint_id: engine_no
+  EXT_FRONT:           { aspect_ratio: "4:3", guide_id: car_front,     hint_id: ext_front }
+  EXT_FRONT_34_LEFT:   { aspect_ratio: "4:3", guide_id: car_34,        hint_id: ext_front_34_left }
+  EXT_LEFT:            { aspect_ratio: "16:9", guide_id: car_side,     hint_id: ext_left }
+  EXT_REAR_34_LEFT:    { aspect_ratio: "4:3", guide_id: car_34,        hint_id: ext_rear_34_left }
+  EXT_REAR:            { aspect_ratio: "4:3", guide_id: car_rear,      hint_id: ext_rear }
+  EXT_REAR_34_RIGHT:   { aspect_ratio: "4:3", guide_id: car_34,        hint_id: ext_rear_34_right }
+  EXT_RIGHT:           { aspect_ratio: "16:9", guide_id: car_side,     hint_id: ext_right }
+  EXT_FRONT_34_RIGHT:  { aspect_ratio: "4:3", guide_id: car_34,        hint_id: ext_front_34_right }
+  EXT_ROOF:            { aspect_ratio: "4:3", guide_id: car_roof,      hint_id: ext_roof }
+  DAMAGE_CLOSEUP:      { aspect_ratio: "4:3", guide_id: closeup,       hint_id: damage_closeup }
+
+# -------------------------------------------------------------------------
+# Completeness requirements
+# -------------------------------------------------------------------------
+
+completeness:
+  # A unit is not created server-side until these have synced (§4.3).
+  required_for_unit_creation: [INTAKE_VIN_PLATE, INTAKE_STNK_FRONT]
+  # All four intake captures before ICR is considered complete.
+  required_for_icr: [INTAKE_VIN_PLATE, INTAKE_STNK_FRONT, INTAKE_ODOMETER, INTAKE_ENGINE_NO]
+  # All nine exterior angles. The set is rejected if any is missing - free-form
+  # uploads are not permitted (§7.1).
+  required_for_grading:
+    - EXT_FRONT
+    - EXT_FRONT_34_LEFT
+    - EXT_LEFT
+    - EXT_REAR_34_LEFT
+    - EXT_REAR
+    - EXT_REAR_34_RIGHT
+    - EXT_RIGHT
+    - EXT_FRONT_34_RIGHT
+    - EXT_ROOF
+  # Each damage the inspector marks requires at least one close-up.
+  require_closeup_per_marked_damage: true
+
+# -------------------------------------------------------------------------
+# Offline queue (§4.3)
+# -------------------------------------------------------------------------
+
+offline:
+  enabled: true
+  store: indexeddb
+  database_name: caready-capture-queue
+  # Chunked resumable upload so a 4G drop in the yard does not restart a 6MB
+  # photo from zero.
+  upload_chunk_bytes: 524288
+  max_concurrent_uploads: 2
+  retry_backoff_seconds: [2, 5, 15, 45, 120, 300]
+  max_retry_attempts: 12
+  # Idempotency key is generated client-side per capture and is the dedupe key
+  # server-side. Re-sending the same key is a no-op, which is what makes the
+  # "syncs without duplicates" acceptance criterion hold.
+  idempotency_key_source: client_uuid_v4
+  # Queued captures older than this are surfaced to the inspector as stale.
+  stale_after_hours: 48
+  # Hard ceiling on local storage before the app refuses new captures.
+  max_queued_photos: 400
+  max_queued_bytes: 1073741824   # 1 GiB

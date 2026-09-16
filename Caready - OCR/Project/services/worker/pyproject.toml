@@ -1,0 +1,32 @@
+[project]
+name = "caready-worker"
+version = "0.1.0"
+description = "Caready background workers (ICR, vision, pricing)"
+requires-python = ">=3.11,<3.13"
+
+# caready-api and caready-ml are installed as editable siblings by the
+# Dockerfile rather than declared here, because they are path dependencies in
+# a monorepo rather than published packages.
+dependencies = [
+    "rq==2.1.0",
+    "redis==5.2.1",
+    "structlog==24.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "ruff==0.9.2",
+    "fakeredis==2.26.2",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["worker*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"

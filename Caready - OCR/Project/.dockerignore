@@ -1,0 +1,37 @@
+# The build context is the repo root (so config/ and seed/ can be copied
+# alongside a service). Keep it small - without this, ~1GB of generated
+# imagery and node_modules ship into every build.
+
+.git
+.github
+**/node_modules
+**/.next
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.venv
+**/venv
+**/*.egg-info
+
+# Regenerated deterministically by seed/run_seed.py
+seed/output
+seed/fixtures/ocr/index.json
+seed/fixtures/vision/index.json
+
+mlruns
+mlartifacts
+packages/ml/labels/export
+
+.env
+.env.*
+!.env.example
+
+**/.DS_Store
+**/Thumbs.db
+.idea
+.vscode
+coverage.xml
+htmlcov
+.coverage
