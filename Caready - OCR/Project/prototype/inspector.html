@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Caready Inspektur</title>
 <meta name="theme-color" content="#ffffff">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -44,6 +45,25 @@ p{margin:0}
 button,select,input,textarea{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- narrow phones ----------
+   The bottom bar holds a progress readout and up to three buttons. Below
+   about 560px those cannot share one row: the progress label wrapped onto
+   five lines and the buttons squeezed to unreadable. Progress moves to its
+   own full-width row above the buttons, which then share the row evenly.
+   --bar-h grows to match so content is not hidden behind a two-row bar. */
+@media (max-width:560px){
+  :root{--bar-h:8.2rem}
+  .bar{flex-wrap:wrap;row-gap:.55rem}
+  .bar .progress{flex:1 0 100%;order:-1}
+  .bar .progress .t{font-size:.72rem}
+  .bar .btn{flex:1 1 0;min-width:0;padding-inline:.45rem;font-size:.84rem;
+    min-height:2.9rem;white-space:nowrap}
+  .bar .btn-wide{flex:1 1 100%}
+  .top-row{gap:.5rem;padding-inline:12px}
+  .sub-ref{font-size:.7rem}
+  main{padding-inline:12px}
+}
 .num{font-variant-numeric:tabular-nums}
 .mono{font-family:var(--mono)}
 
@@ -138,6 +158,11 @@ h2.title{font-size:1.35rem;font-weight:700}
 .btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover);color:var(--accent-ink)}
 .btn-ghost{border-color:transparent;background:transparent;color:var(--muted)}
 .btn:disabled{opacity:.42;cursor:not-allowed}
+/* `.btn{display:inline-flex}` beats the [hidden] attribute's display:none, so
+   the bar's prev/next/fab buttons stayed visible however the code set
+   .hidden - three buttons crowded one bar and the progress readout was
+   squeezed to five wrapped lines on a phone. */
+.btn[hidden]{display:none!important}
 .btn-row{display:flex;gap:.5rem}
 .btn-row .btn{flex:1}
 
