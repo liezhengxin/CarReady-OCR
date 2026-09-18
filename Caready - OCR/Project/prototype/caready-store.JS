@@ -29,12 +29,18 @@ const CareadyStore = (() => {
   const CODE_PREFIX = "CR-26-";
   const CODE_FLOOR = 500;
 
-  const empty = () => ({ version: VERSION, units: [], updatedAt: null });
+  const empty = () => ({ version: VERSION, units: [], hidden: [], updatedAt: null });
 
   function load() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEY));
-      if (raw?.version === VERSION && Array.isArray(raw.units)) return raw;
+      if (raw?.version === VERSION && Array.isArray(raw.units)) {
+        /* `hidden` was added after the first rehearsals, so an envelope written
+           by an older copy of this file has no such key. Same VERSION on
+           purpose: the field is additive and an old envelope is still valid. */
+        if (!Array.isArray(raw.hidden)) raw.hidden = [];
+        return raw;
+      }
     } catch { /* corrupt or unavailable - fall through to empty */ }
     return empty();
   }
@@ -68,8 +74,37 @@ const CareadyStore = (() => {
     return code;
   }
 
+  /* Codes the dashboard should not show. Removing a submitted unit takes it out
+     of `units`; removing a seeded one cannot, because the fourteen demo units
+     are compiled into dashboard.html and reappear on every reload. So both
+     cases also record the code here and the dashboard filters on it. */
+  function hidden() {
+    return load().hidden;
+  }
+
+  /* One unit, gone: dropped from the list, recorded as hidden, photos deleted.
+     Resolves to the number of photos removed so the caller can say so rather
+     than claim a cleanup it did not verify. */
+  async function removeUnit(code) {
+    const data = load();
+    data.units = data.units.filter(u => u.code !== code);
+    if (!data.hidden.includes(code)) data.hidden.push(code);
+    const ok = save(data);
+
+    let photos = 0;
+    try { photos = await CareadyPhotos.remove(code); }
+    catch (e) { console.warn("foto tidak terhapus:", e); }
+
+    if (ok) window.dispatchEvent(new CustomEvent("caready:store", { detail: { removed: code } }));
+    return { ok, photos };
+  }
+
   function addUnit(unit) {
     const data = load();
+    /* A removed code is free again, and nextCode will hand it out. Un-hiding on
+       arrival stops the reissued unit from being written and then filtered
+       straight back out - which looked exactly like a failed submission. */
+    data.hidden = data.hidden.filter(c => c !== unit.code);
     const at = data.units.findIndex(u => u.code === unit.code);
     if (at >= 0) data.units[at] = unit;
     else data.units.unshift(unit);
@@ -101,7 +136,8 @@ const CareadyStore = (() => {
     window.addEventListener("storage", e => { if (e.key === KEY) fn(e); });
   }
 
-  return { load, save, units, nextCode, addUnit, clear, subscribe, KEY, VERSION };
+  return { load, save, units, hidden, nextCode, addUnit, removeUnit, clear,
+           subscribe, KEY, VERSION };
 })();
 
 /* ==========================================================================
@@ -212,6 +248,17 @@ const CareadyPhotos = (() => {
     return row?.blob ? URL.createObjectURL(row.blob) : null;
   }
 
+  /* Every capture for one unit. Deleting through the `code` index rather than
+     reconstructing `${code}:${capId}` keys means a slot the inspector added
+     later is still caught - the alternative silently leaves blobs behind.
+     Returns how many rows went, so a caller can report a real number. */
+  async function remove(code) {
+    const keys = await tx("readonly", os => os.index("code").getAllKeys(code));
+    if (!keys?.length) return 0;
+    await tx("readwrite", os => { keys.forEach(k => os.delete(k)); });
+    return keys.length;
+  }
+
   async function wipe() {
     await tx("readwrite", os => os.clear());
   }
@@ -222,7 +269,7 @@ const CareadyPhotos = (() => {
     return { count: (rows || []).length, bytes };
   }
 
-  return { put, manifest, objectUrl, wipe, usage, shrink };
+  return { put, manifest, objectUrl, remove, wipe, usage, shrink };
 })();
 
 /* ==========================================================================
@@ -372,7 +419,87 @@ const CareadySim = (() => {
 
   const SCENARIOS = {
 
-    /* 1. The real document. A Toyota Hilux whose STNK came from the office,
+    /* 1. The identity mismatch. A 1997 Mercedes E230 whose STNK is real, and
+          whose vehicle fields below are all exactly what the document says.
+          Owner name and address are synthetic; the image is redacted.
+
+          IMPORTANT, because it will be asked: the mismatch is ours. This car's
+          STNK, its physical-check rubbing and its number plate all agree on
+          MHL2100370L030969. The disagreeing chassis plate below - and the
+          plate photo in demo-captures - were generated, keeping the
+          MHL2100370L prefix so it still reads as a W210 with a re-stamped
+          serial, which is the fraud pattern this check exists to catch.
+
+          The Honda plate in the source photos (MHRDD4850LJ901314, engine
+          L15Z...) is a DIFFERENT REAL VEHICLE and is deliberately not used. A
+          Honda plate under a Mercedes reads as a careless demo, not as a
+          caught forgery.
+
+          Engine number matches on purpose: a re-stamped chassis usually leaves
+          the engine alone, and one clear finding beats two.
+
+          Second real finding: the annual tax reads BERLAKU SAMPAI 01-12-2020,
+          so EXPIRED_GTE_12M, which costs Rp 4.500.000 against the floor under
+          pricing.yaml. NOMOR BPKB is genuinely blank on the document, so it is
+          null here rather than invented. */
+    "K 8000 KK": {
+      /* trim is "Classic", not "Classic AT": the header prints trim then trans,
+         so carrying the AT in both rendered "Classic AT AT". The STNK's TYPE
+         field reads E230 CLASSIC AT and is reconstructed from the two. */
+      merk: "Mercedes-Benz", model: "E230", trim: "Classic", trans: "AT",
+      year: 1997, cc: 2295, colour: "Abu Muda Metalik", fuel: "Bensin",
+      branch: "SMG-01",
+      otr: 270_000_000, anchor: 0.31,
+      tax: "EXPIRED_GTE_12M", taxUntil: "01-12-2020",
+      pemilik: "Hendra Kusuma",                                     // synthetic
+      alamat: "Jl. Dahlia No. 54 RT 02/RW 06, Kudus, Jawa Tengah",  // synthetic
+      tipeRaw: "E230 CLASSIC AT",
+      rangka: "MHL2100370L030969",        // STNK, verbatim
+      mesin: "11197062073965",            // STNK, verbatim
+      bpkb: null,                         // blank on the document
+      platRangka: "MHL2100370L071843",    // generated - 5 chars out, past tolerance
+      platMesin: "11197062073965",        // matches
+      plateCond: "CLEAN",
+      defect: "vin_mismatch",
+      damages: [
+        { panel: "fender_fl",      type: "karat",     sev: 2, area: 0.06, conf: 0.90 },
+        { panel: "trunk_tailgate", type: "karat",     sev: 2, area: 0.05, conf: 0.88 },
+        { panel: "door_rl",        type: "cat_ulang", sev: 2, area: 0.14, conf: 0.91 },
+        { panel: "fender_fr",      type: "cat_ulang", sev: 2, area: 0.11, conf: 0.89 },
+        { panel: "rear_bumper",    type: "baret",     sev: 2, area: 0.09, conf: 0.92 }
+      ]
+    },
+
+    /* 2. The clean result, and the first two-wheeler. A 2022 Honda PCX 160,
+          real STNK, tax live until 04-03-2027, chassis and engine numbers
+          photographed off the bike and matching the document exactly - so
+          nothing here is invented except the owner fields.
+
+          Panels are the scooter set added to the rubric. Two trivial scuffs
+          rather than a pristine bike: a four-year-old scooter with no findings
+          at all invites the question of whether the vision step ran. */
+    "B 5881 BET": {
+      merk: "Honda", model: "PCX 160", trim: "CBS", trans: "CVT",
+      year: 2022, cc: 157, colour: "Biru", fuel: "Bensin", branch: "JKT-01",
+      otr: 35_500_000, anchor: 0.76,
+      tax: "ACTIVE", taxUntil: "04-03-2027",
+      pemilik: "Rina Marlina",                                             // synthetic
+      alamat: "Jl. Cempaka No. 21 RT 05/RW 08, Jakarta Barat, DKI Jakarta", // synthetic
+      tipeRaw: "V1J02Q50L1 AT",
+      rangka: "MH1KF8119NK080062",   // STNK and frame stamp, verbatim
+      mesin: "KF81E1079868",         // STNK and engine stamp, verbatim
+      bpkb: "S02423361",
+      platRangka: "MH1KF8119NK080062",
+      platMesin: "KF81E1079868",
+      plateCond: "CLEAN",
+      defect: null,
+      damages: [
+        { panel: "body_cover_l", type: "baret", sev: 1, area: 0.02, conf: 0.90 },
+        { panel: "floor_step",   type: "baret", sev: 1, area: 0.03, conf: 0.87 }
+      ]
+    },
+
+    /* 3. The real document. A Toyota Hilux whose STNK came from the office,
           with the owner name and address redacted out of the image and
           replaced with synthetic values here - no third party's home address
           belongs in a fixture or on a client call.
@@ -408,7 +535,7 @@ const CareadySim = (() => {
       ]
     },
 
-    /* 2. The clean comparison. Synthetic throughout, so it can be shown
+    /* 4. The clean comparison. Synthetic throughout, so it can be shown
           without any redaction, and it is the contrast that makes the first
           car's finding legible: same flow, nothing flagged, small deduction,
           ready to approve. */

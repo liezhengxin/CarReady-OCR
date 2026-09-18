@@ -422,7 +422,17 @@ const RUBRIC = {
     quarter_panel_l:1.4, quarter_panel_r:1.4, windshield:1.2, rear_glass:1,
     headlamp_l:.9, headlamp_r:.9, taillamp_l:.85, taillamp_r:.85, grille:.7,
     mirror_l:.5, mirror_r:.5, wheel_fl:.6, wheel_fr:.6, wheel_rl:.6, wheel_rr:.6,
-    tire_fl:.5, tire_fr:.5, tire_rl:.5, tire_rr:.5
+    tire_fl:.5, tire_fr:.5, tire_rl:.5, tire_rr:.5,
+
+    /* Two-wheelers. caready.co.id already runs BIKE lots and lists Motor as a
+       category, so these are not hypothetical. Scooter plastics are cheap to
+       replace and weighted below car panels; the frame is the one structural
+       part and carries the highest weight on the vehicle. */
+    frame:1.5, front_apron:.9, front_fender:.7, rear_fender:.7,
+    body_cover_l:.9, body_cover_r:.9, floor_step:.6, seat:.5,
+    handlebar_cover:.7, windscreen:.6, headlamp:.9, taillamp:.7,
+    exhaust:.8, engine_cover:.7,
+    wheel_f:.6, wheel_r:.6, tire_f:.5, tire_r:.5
   },
   areaBreakpoints:[[0,.6],[.05,1],[.2,1.4],[.5,1.8],[1,2]],
   bands:[
@@ -442,7 +452,9 @@ const RUBRIC = {
     {cap:"C",why:"Cat ulang pada dua panel atau lebih adalah tanda perbaikan tabrakan",
      test:d=>new Set(d.filter(x=>x.type==="cat_ulang").map(x=>x.panel)).size>=2},
     {cap:"D",why:"Kerusakan berat pada panel struktural",
-     test:d=>d.some(x=>x.sev>=3&&["roof","quarter_panel_l","quarter_panel_r"].includes(x.panel))},
+     /* `frame` is the two-wheeler equivalent of roof and quarter panel: it is
+        the part that cannot be unbolted and replaced. */
+     test:d=>d.some(x=>x.sev>=3&&["roof","quarter_panel_l","quarter_panel_r","frame"].includes(x.panel))},
     {cap:"C",why:"Kaca depan pecah, termasuk komponen keselamatan",
      test:d=>d.some(x=>x.panel==="windshield"&&x.type==="pecah")}
   ]
@@ -463,7 +475,14 @@ const PANEL_LABEL = {
   taillamp_r:"Lampu belakang kanan",grille:"Gril",mirror_l:"Spion kiri",mirror_r:"Spion kanan",
   wheel_fl:"Velg depan kiri",wheel_fr:"Velg depan kanan",wheel_rl:"Velg belakang kiri",
   wheel_rr:"Velg belakang kanan",tire_fl:"Ban depan kiri",tire_fr:"Ban depan kanan",
-  tire_rl:"Ban belakang kiri",tire_rr:"Ban belakang kanan"};
+  tire_rl:"Ban belakang kiri",tire_rr:"Ban belakang kanan",
+  // Two-wheelers
+  frame:"Rangka",front_apron:"Batok depan",front_fender:"Spakbor depan",
+  rear_fender:"Spakbor belakang",body_cover_l:"Cover bodi kiri",
+  body_cover_r:"Cover bodi kanan",floor_step:"Dek pijakan",seat:"Jok",
+  handlebar_cover:"Cover stang",windscreen:"Visor",headlamp:"Lampu depan",
+  taillamp:"Lampu belakang",exhaust:"Knalpot",engine_cover:"Cover mesin",
+  wheel_f:"Velg depan",wheel_r:"Velg belakang",tire_f:"Ban depan",tire_r:"Ban belakang"};
 
 function areaMultiplier(r){
   if(r==null) return 1;
@@ -714,7 +733,11 @@ function normaliseUnit(u){
 function rebuildUnits(){
   const stored = CareadyStore.units().map(normaliseUnit);
   const storedCodes = new Set(stored.map(u=>u.code));
-  UNITS = [...stored, ...SEEDED_UNITS.filter(u=>!storedCodes.has(u.code))];
+  /* Removed codes. A submitted unit is already gone from the store, but a
+     seeded one is compiled into this file and can only be filtered out here. */
+  const gone = new Set(CareadyStore.hidden());
+  UNITS = [...stored, ...SEEDED_UNITS.filter(u=>!storedCodes.has(u.code))]
+    .filter(u=>!gone.has(u.code));
   UNITS.forEach(u=>{ if(!App.baseline.has(u.code)) App.baseline.set(u.code, computeGrade(u.damages)); });
   return UNITS;
 }
@@ -957,8 +980,11 @@ function viewRingkasan(){
   const awaiting = rows.filter(r=>statusOf(r.u)==="PENDING_APPROVAL");
   const ready = rows.filter(r=>statusOf(r.u)==="APPROVED").length;
   const done = rows.filter(r=>!r.a.lowFields.length && !r.a.blockers.length).length;
-  const v = rows[0];
-  const p = v.a.price;
+  /* The list can legitimately be empty - every unit removed, or a reset in a
+     tab that had nothing seeded. The spotlight below is guarded on `p`, so a
+     null here renders the metrics and nothing else instead of throwing. */
+  const v = rows[0] ?? null;
+  const p = v?.a.price ?? null;
 
   const metrics = [
     ["Total inventaris", UNITS.length, "Unit terdaftar", "car"],
@@ -1178,6 +1204,10 @@ const TABS = [["identitas","Identitas"],["kondisi","Kondisi"],
 
 function viewDetail(){
   const u = UNITS.find(x=>x.code===App.selected);
+  /* The selected unit can vanish under this view - it was just removed, or
+     another tab removed it. Falling through to `u.code` threw and blanked the
+     page; sending the user back to the inventory is the honest recovery. */
+  if(!u) return viewInventaris();
   const a = analyse(u), st = statusOf(u);
   if(!TABS.some(([id])=>id===App.tab)) App.tab = "identitas";
   const panes = {identitas:tabIdentitas, kondisi:tabKondisi,
@@ -1204,7 +1234,29 @@ function viewDetail(){
         </div>
         <aside class="detail-aside">${detailAside(u,a,st)}</aside>
       </div>
+      ${removeRow(u)}
     </div>`;
+}
+
+/* Demo tooling, deliberately placed below the fold and away from the approval
+   rail. Same reasoning as the sidebar reset: the real system never deletes a
+   unit - it rejects it, and the audit trail is append-only in the database.
+   This exists so a rehearsal submission can be cleared without emptying the
+   whole demo, which was the only way to do it before. */
+function removeRow(u){
+  const seeded = !CareadyStore.units().some(x=>x.code===u.code);
+  return `
+    <div class="line" style="margin:28px 0 14px"></div>
+    <div class="between" style="gap:12px;flex-wrap:wrap">
+      <p class="small muted" style="margin:0;max-width:52ch">
+        Alat demo: keluarkan unit ini dari inventaris.
+        ${seeded ? "Unit contoh bawaan — kembali setelah “Muat ulang data”."
+                 : "Data dan foto unit ini dihapus."}
+      </p>
+      <button class="btn ghost" id="remove-unit" data-code="${u.code}" data-armed="false"
+        style="color:var(--danger)">Keluarkan unit</button>
+    </div>
+    <p class="small muted" id="remove-hint" style="text-align:right;margin-top:6px"></p>`;
 }
 
 /* The persistent decision rail. Everything needed to approve or reject sits
@@ -1814,6 +1866,7 @@ function disarmReset(){
 
 async function doReset(){
   const n = CareadyStore.units().length;
+  const h = CareadyStore.hidden().length;
   let photos = 0;
   try{ photos = (await CareadyPhotos.usage()).count; }catch{}
   await CareadyStore.clear();
@@ -1824,11 +1877,13 @@ async function doReset(){
   App.log.length = 0;
   disarmReset();
   rebuildUnits();
-  App.selected = UNITS[0].code;
+  App.selected = UNITS[0]?.code ?? null;
   App.view = "inventaris";
   render();
-  addLog("Data dimuat ulang", `${n} unit dan ${photos} foto dikosongkan`);
-  resetHint(`${n} unit, ${photos} foto dikosongkan.`);
+  const said = [n ? `${n} unit dikosongkan` : "", photos ? `${photos} foto dihapus` : "",
+                h ? `${h} unit contoh kembali` : ""].filter(Boolean).join(", ");
+  addLog("Data dimuat ulang", said || "tidak ada perubahan");
+  resetHint(said ? said + "." : "");
   setTimeout(()=>resetHint(""), 6000);
 }
 
@@ -1837,16 +1892,70 @@ document.addEventListener("click", e=>{
   if(!b){ if($("reset-demo")?.dataset.armed === "true") disarmReset(); return; }
   if(b.dataset.armed === "true"){ doReset(); return; }
   const n = CareadyStore.units().length;
-  if(!n){ resetHint("Tidak ada data untuk dikosongkan."); setTimeout(()=>resetHint(""), 3000); return; }
+  /* Removed seeded units count as something to undo. Checking only `units`
+     made the reset refuse to arm once the submitted units were gone, which
+     left no way back to the full fourteen. */
+  const h = CareadyStore.hidden().length;
+  if(!n && !h){ resetHint("Tidak ada yang perlu dimuat ulang."); setTimeout(()=>resetHint(""), 3000); return; }
   b.dataset.armed = "true";
-  b.textContent = `Hapus ${n} unit — klik lagi`;
-  resetHint("Unit contoh bawaan tetap.");
+  b.textContent = "Klik lagi untuk memuat ulang";
+  resetHint(n && h ? `${n} unit dikosongkan, ${h} unit contoh kembali.`
+          : n ? `${n} unit dikosongkan. Unit contoh bawaan tetap.`
+              : `${h} unit contoh kembali.`);
   resetTimer = setTimeout(disarmReset, 5000);
+});
+
+/* --------------------------------------------------------------------------
+   Remove one unit
+   --------------------------------------------------------------------------
+   Two clicks, like the reset, and for the same reason. The button is rebuilt
+   by every render, so the armed state cannot be held on the element - it lives
+   here, keyed by code, and is dropped as soon as the removal runs or the arm
+   times out.
+   -------------------------------------------------------------------------- */
+let armedRemove = null, removeTimer = null;
+
+function removeHint(msg){ const h = $("remove-hint"); if(h) h.textContent = msg || ""; }
+
+function disarmRemove(){
+  armedRemove = null;
+  clearTimeout(removeTimer);
+  const b = $("remove-unit");
+  if(b){ b.textContent = "Keluarkan unit"; b.dataset.armed = "false"; }
+  removeHint("");
+}
+
+async function doRemove(code){
+  const u = UNITS.find(x=>x.code===code);
+  const label = u ? `${u.merk||""} ${u.model||""}`.trim() || u.plat : code;
+  disarmRemove();
+  const { photos } = await CareadyStore.removeUnit(code);
+  GAL_STATE.clear();
+  App.unmasked.delete(code);
+  App.decisions.delete(code);
+  App.baseline.delete(code);
+  rebuildUnits();
+  App.selected = UNITS[0]?.code ?? null;
+  App.view = "inventaris";
+  render();
+  addLog("Unit dikeluarkan", `${code} · ${label} · ${photos} foto dihapus`);
+}
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("#remove-unit");
+  if(!b){ if(armedRemove) disarmRemove(); return; }
+  const code = b.dataset.code;
+  if(armedRemove === code){ doRemove(code); return; }
+  armedRemove = code;
+  b.dataset.armed = "true";
+  b.textContent = "Klik lagi untuk mengeluarkan";
+  removeHint("Batal: klik di luar tombol.");
+  removeTimer = setTimeout(disarmRemove, 5000);
 });
 
 /* Boot */
 rebuildUnits();
-if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0].code;
+if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0]?.code ?? null;
 render();
 
 /* A dashboard left open picks up an inspection submitted in another tab. */
@@ -1855,7 +1964,7 @@ CareadyStore.subscribe(()=>{
   rebuildUnits();
   const fresh = UNITS.find(u=>!before.has(u.code));
   if(fresh) addLog("Unit baru diterima", `${fresh.code} · ${fresh.plat}`);
-  if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0].code;
+  if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0]?.code ?? null;
   render();
 });
 </script>

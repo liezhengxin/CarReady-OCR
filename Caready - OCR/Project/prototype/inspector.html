@@ -354,10 +354,14 @@ const CHECKS = [
    Pool and history
    ========================================================================== */
 const POOL = [
-  /* The two demo vehicles. Outcomes are pre-authored in caready-store.js and
-     selected by plate. Listed first. */
-  {id:"d1", plat:"B 9369 VBA",  car:"Toyota Hilux 2.4G DC 4x4",     year:2021, asal:"Armada",     masuk:"18 Sep"},
-  {id:"d2", plat:"B 2914 RFK",  car:"Honda Brio Satya E",           year:2021, asal:"Perorangan", masuk:"18 Sep"},
+  /* The demo vehicles. Outcomes are pre-authored in caready-store.js and
+     selected by plate, so these four are the ones that reach a finished
+     result. Listed first, in the order they are meant to be shown:
+     mismatch -> clean -> spare -> spare. */
+  {id:"d1", plat:"K 8000 KK",   car:"Mercedes-Benz E230 Classic AT", year:1997, asal:"Perorangan", masuk:"18 Sep"},
+  {id:"d2", plat:"B 5881 BET",  car:"Honda PCX 160 CBS",             year:2022, asal:"Perorangan", masuk:"18 Sep"},
+  {id:"d3", plat:"B 9369 VBA",  car:"Toyota Hilux 2.4G DC 4x4",      year:2021, asal:"Armada",     masuk:"18 Sep"},
+  {id:"d4", plat:"B 2914 RFK",  car:"Honda Brio Satya E",            year:2021, asal:"Perorangan", masuk:"18 Sep"},
 
   {id:"u1", plat:"B 1842 KZL",  car:"Toyota Avanza G",             year:2019, asal:"Leasing",    masuk:"14 Sep"},
   {id:"u2", plat:"L 3391 QBN",  car:"Daihatsu Xenia R",            year:2018, asal:"Leasing",    masuk:"15 Sep"},
