@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Caready Admin Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -303,6 +304,45 @@ tr[data-low="true"] .bar span{background:var(--warning)}
   .tabs{gap:20px}
   .detail-aside{grid-template-columns:1fr}
 }
+
+/* ---------- capture gallery ---------- */
+.gal{margin-top:14px}
+.gal-main{position:relative;background:#101317;border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;aspect-ratio:4/3;display:grid;place-items:center}
+.gal-main img{width:100%;height:100%;object-fit:contain;display:block}
+.gal-main .gal-empty{color:#9aa3ad;font-size:13px;padding:20px;text-align:center}
+.gal-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;
+  width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(16,19,23,.72);color:#fff;font-size:20px;line-height:1;
+  display:grid;place-items:center}
+.gal-nav:hover{background:rgba(16,19,23,.92)}
+.gal-nav[data-act="gal-prev"]{left:10px}
+.gal-nav[data-act="gal-next"]{right:10px}
+.gal-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:8px 12px;
+  background:linear-gradient(transparent,rgba(16,19,23,.86));color:#fff;
+  font-size:12px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.gal-strip{display:flex;gap:8px;overflow-x:auto;padding:10px 2px 2px;scrollbar-width:thin}
+.gal-thumb{flex:none;width:76px;height:57px;padding:0;border-radius:5px;cursor:pointer;
+  border:2px solid var(--border);background:#101317;overflow:hidden;position:relative}
+.gal-thumb[aria-current="true"]{border-color:var(--primary)}
+.gal-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* PII: the source image is blurred by the same rule that masks the text
+   fields, and reveals on the same action. */
+.pii-blur img{filter:blur(16px) saturate(.6)}
+.gal-thumb.pii-blur img{filter:blur(6px) saturate(.6)}
+.pii-shield{position:absolute;inset:0;z-index:4;display:grid;place-items:center;
+  gap:8px;align-content:center;background:rgba(16,19,23,.34);text-align:center;padding:16px}
+.pii-shield p{color:#fff;font-size:12.5px;max-width:34ch;line-height:1.45}
+.gal-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+/* ---------- demo reset ---------- */
+.reset-btn{margin-top:12px;width:100%;padding:7px 10px;font:inherit;font-size:12px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;
+  color:var(--muted);cursor:pointer;text-align:left}
+.reset-btn:hover{border-color:var(--muted);color:var(--ink)}
+.reset-btn[data-armed="true"]{border-color:var(--danger);background:var(--danger-bg);
+  color:var(--danger);font-weight:600}
+.reset-hint{margin-top:6px;line-height:1.4;min-height:1em}
 </style>
 
 <aside class="sidebar">
@@ -322,6 +362,12 @@ tr[data-low="true"] .bar span{background:var(--warning)}
         <div class="small" id="u-role">Penyetuju</div>
       </div>
     </div>
+    <!-- Demo tooling, not product. Deliberately small, deliberately not near
+         any approval control, and it asks twice. -->
+    <button class="reset-btn" id="reset-demo" data-armed="false"
+            title="Kosongkan unit dan foto hasil inspeksi; unit contoh bawaan tetap">
+      Muat ulang data</button>
+    <div class="small reset-hint" id="reset-hint"></div>
   </div>
 </aside>
 
@@ -341,8 +387,23 @@ tr[data-low="true"] .bar span{background:var(--warning)}
   <main class="content" id="main"></main>
 </div>
 
+<script src="caready-store.js"></script>
 <script>
 "use strict";
+
+/* Without caready-store.js the dashboard cannot read submitted units at all,
+   so this fails at boot rather than mid-interaction. Make the cause legible. */
+if(typeof CareadyStore === "undefined" || typeof CareadyPhotos === "undefined"){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const bar = document.createElement("div");
+    bar.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:999;background:#b4232c;"
+      + "color:#fff;padding:.7rem 16px;font:600 .88rem/1.45 system-ui,sans-serif";
+    bar.textContent = "caready-store.js tidak termuat. Unit hasil inspeksi tidak akan muncul. "
+      + "Pastikan file itu ada di folder yang sama dengan dashboard.html.";
+    document.body.prepend(bar);
+  });
+  console.error("caready-store.js missing: CareadyStore/CareadyPhotos undefined");
+}
 
 /* ==========================================================================
    Grading rubric: a faithful port of config/grading.yaml.
@@ -471,7 +532,7 @@ function priceUnit(u, grade){
    ========================================================================== */
 const D = (panel,type,sev,area,conf=.9)=>({panel,type,sev,area,conf});
 
-const UNITS = [
+const SEEDED_UNITS = [
   {code:"CR-26-0401", status:"PENDING_APPROVAL", defect:"vin_mismatch",
    merk:"Toyota", model:"Avanza", trim:"1.5 G", trans:"AT", year:2019, cc:1496,
    odo:96400, colour:"Hitam", branch:"JKT-01", fuel:"Bensin",
@@ -626,6 +687,37 @@ const UNITS = [
    checklist:{}}
 ];
 
+/* Units submitted by the inspector app arrive through the shared store. They
+   are prepended so the newest inspection is the first thing on the page.
+   `let`, not `const`: the list is rebuilt whenever the store changes. */
+let UNITS = SEEDED_UNITS;
+
+/* Units arrive from another client, so this is the boundary where their shape
+   is guaranteed rather than assumed. A DRAFT carries no damages array at all -
+   vision has not run - and every render path downstream expects one. */
+function normaliseUnit(u){
+  return {
+    ...u,
+    damages:   Array.isArray(u.damages) ? u.damages : [],
+    checklist: (u.checklist && typeof u.checklist === "object") ? u.checklist : {},
+    status:    STATUS_RANK[u.status] !== undefined ? u.status : "DRAFT",
+    defect:    u.defect ?? null,
+    /* Everything an ICR read would have produced. Absent on a DRAFT, and
+       absent is not the same as empty - the renderers show a dash. */
+    ...Object.fromEntries(["merk","model","trim","trans","cc","colour","fuel","branch",
+      "otr","anchor","tax","taxUntil","pemilik","alamat","rangka","mesin","bpkb",
+      "platRangka","platMesin","plateCond","tipeRaw"].map(k=>[k, u[k] ?? null]))
+  };
+}
+
+function rebuildUnits(){
+  const stored = CareadyStore.units().map(normaliseUnit);
+  const storedCodes = new Set(stored.map(u=>u.code));
+  UNITS = [...stored, ...SEEDED_UNITS.filter(u=>!storedCodes.has(u.code))];
+  UNITS.forEach(u=>{ if(!App.baseline.has(u.code)) App.baseline.set(u.code, computeGrade(u.damages)); });
+  return UNITS;
+}
+
 /* ==========================================================================
    ICR extraction
    ========================================================================== */
@@ -700,7 +792,7 @@ const TAX_LABEL = {ACTIVE:"Aktif",EXPIRING_SOON:"Akan jatuh tempo",
 function idMatch(stnkVal, plateVal, kind){
   const label = kind==="vin" ? "Nomor rangka" : "Nomor mesin";
   const na=norm(stnkVal), nb=norm(plateVal), dist=editDistance(na,nb);
-  const normApplied = na===nb && stnkVal.toUpperCase()!==plateVal.toUpperCase();
+  const normApplied = na===nb && String(stnkVal??"").toUpperCase()!==String(plateVal??"").toUpperCase();
   if(dist===0) return {name:label, verdict:"PASS", sev:"INFO", normApplied,
     msg: normApplied
       ? "Cocok setelah huruf O dibaca angka 0 dan huruf I dibaca angka 1. Penomoran rangka memang tidak memakai huruf I, O, dan Q karena gampang tertukar, dan pembacaan otomatis melakukan kekeliruan yang sama. Kecocokan seperti ini tetap dicatat terpisah dari kecocokan persis."
@@ -715,6 +807,7 @@ function idMatch(stnkVal, plateVal, kind){
 }
 
 function crossChecks(u){
+  if(!reached(u.status, "ICR_DONE") || u.rangka == null) return [];
   const out = [idMatch(u.rangka,u.platRangka,"vin"), idMatch(u.mesin,u.platMesin,"engine")];
   const tampered = u.plateCond==="TAMPERED_SUSPECTED";
   out.push({name:"Kondisi plat", verdict:tampered?"MISMATCH":"PASS",
@@ -780,9 +873,11 @@ const ICONS = {
 };
 const icon = k => `<svg class="icon" viewBox="0 0 24 24">${ICONS[k]}</svg>`;
 
-const maskName = n => n.split(" ").map(w=>w[0]+"*".repeat(Math.max(1,w.length-1))).join(" ");
-const maskAddress = a => "•••••••••••, " + a.split(", ").slice(-2).join(", ");
-const maskTail4 = v => "••••" + v.slice(-4);
+const maskName = n => !n ? "—" : n.split(" ").map(w=>w[0]+"*".repeat(Math.max(1,w.length-1))).join(" ");
+const maskAddress = a => !a ? "—" : "•••••••••••, " + a.split(", ").slice(-2).join(", ");
+const maskTail4 = v => !v ? "—" : "••••" + v.slice(-4);
+/* Absent because a stage has not run yet, not because it is zero. */
+const orDash = v => (v === null || v === undefined || v === "") ? "—" : esc(v);
 const MASKERS = {name:maskName, address:maskAddress, tail4:maskTail4};
 
 /* ==========================================================================
@@ -821,22 +916,37 @@ function addLog(action, detail){
   if(App.log.length>40) App.log.pop();
 }
 
+/* Forward order of UnitStatus (app/enums.py). REJECTED sits level with
+   ICR_DONE: it can only return to DRAFT, and carries no grade or price. */
+const STATUS_RANK = {DRAFT:0, ICR_DONE:1, REJECTED:1, GRADED:2, PRICED:3,
+  PENDING_APPROVAL:4, APPROVED:5};
+const reached = (st, target) => (STATUS_RANK[st] ?? 0) >= STATUS_RANK[target];
+
 function analyse(u){
+  const st0 = statusOf(u);
+  /* A unit that has not reached GRADED has no grade, and one that has not
+     reached PRICED has no price. Showing either would present a value no
+     stage has produced - an empty damage list is not grade A. */
+  const hasGrade = reached(st0, "GRADED");
+  const hasPrice = reached(st0, "PRICED");
   const grade = computeGrade(u.damages);
   const checks = crossChecks(u);
   const flagged = Object.keys(u.checklist||{});
   const blockers = checks.filter(c=>c.sev==="BLOCKER")
     .map(c=>`${c.name.toLowerCase()}: ${VERDICT_LABEL[c.verdict].toLowerCase()}`);
   flagged.forEach(k=>blockers.push(`checklist ditandai: ${CHECKLIST_LABEL[k].toLowerCase()}`));
-  const priceable = u.defect!=="unresolved_variant";
+  const priceable = hasPrice && u.defect!=="unresolved_variant" && u.otr != null;
   const lowFields = icrRows(u).filter(r=>r.low);
   const id = checks.slice(0,2);
-  const identity = id.some(c=>c.verdict==="MISMATCH") ? "TIDAK COCOK"
+  const identity = id.length === 0 ? null
+                 : id.some(c=>c.verdict==="MISMATCH") ? "TIDAK COCOK"
                  : id.some(c=>c.verdict==="NEEDS_REVIEW") ? "PERIKSA" : "COCOK";
-  return {grade, checks, blockers, flagged, lowFields, priceable, identity,
+  return {grade, hasGrade, hasPrice, checks, blockers, flagged, lowFields, priceable, identity,
     price: priceable ? priceUnit(u, grade) : null};
 }
 const IDENTITY_TONE = {"COCOK":"green","PERIKSA":"amber","TIDAK COCOK":"red"};
+/* No verdict yet reads as "—", never as a pass. */
+const identityBadge = a => a.identity ? badge(a.identity, IDENTITY_TONE[a.identity]) : badge("—","");
 
 /* ==========================================================================
    Overview
@@ -872,7 +982,7 @@ function viewRingkasan(){
         <div>
           <h2>${esc(v.u.merk)} ${esc(v.u.model)}</h2>
           <p class="muted" style="font-size:12px;margin:5px 0 16px">${v.u.year} ·
-            ${esc(v.u.trim)} ${esc(v.u.trans)} · ${num(v.u.odo)} km</p>
+            ${esc(v.u.trim)} ${orDash(v.u.trans)} · ${num(v.u.odo)} km</p>
           <div class="big-price">${short(p.base)}</div>
           <p class="muted" style="font-size:12px;margin-top:6px">Harga dasar lelang · Grade ${v.a.grade.label}</p>
         </div>
@@ -935,7 +1045,7 @@ function filtered(){
   return UNITS.map(u=>({u,a:analyse(u)})).filter(({u,a})=>
     (`${u.code} ${u.plat} ${u.merk} ${u.model} ${u.trim}`.toLowerCase().includes(q)) &&
     (f.status==="all" || statusOf(u)===f.status) &&
-    (f.grade==="all" || a.grade.label===f.grade));
+    (f.grade==="all" || (a.hasGrade && a.grade.label===f.grade)));
 }
 
 function inventoryCard(){
@@ -955,7 +1065,7 @@ function inventoryCard(){
         </div>
         <select id="f-status" aria-label="Saring status">
           <option value="all">Semua status</option>
-          ${Object.entries(STATUS_LABEL).filter(([k])=>k!=="DRAFT").map(([k,v])=>
+          ${Object.entries(STATUS_LABEL).map(([k,v])=>
             `<option value="${k}" ${App.filters.status===k?"selected":""}>${v}</option>`).join("")}
         </select>
         <select id="f-grade" aria-label="Saring grade">
@@ -982,16 +1092,19 @@ function renderRows(){
     const st = statusOf(u);
     const price = c.price ? (a.price
       ? `<td class="mono">${short(a.price.amp)}</td><td class="mono" style="font-weight:600">${short(a.price.base)}</td>`
-      : `<td class="mono muted">—</td><td>${badge("Varian ?","amber")}</td>`) : "";
+      : `<td class="mono muted">—</td><td>${!reached(st,"PRICED")
+          ? `<span class="muted" title="Harga dihitung setelah grading">—</span>`
+          : badge("Varian ?","amber")}</td>`) : "";
     return `<tr data-code="${u.code}">
       <td><button class="rowlink mono" data-act="open" data-code="${u.code}">${u.code}</button>
           <small style="color:var(--ink)">${esc(u.plat)}</small></td>
-      <td><strong style="font-weight:600">${esc(u.merk)} ${esc(u.model)}</strong>
-          <small>${esc(u.trim)} ${esc(u.trans)}</small></td>
+      <td><strong style="font-weight:600">${u.merk ? `${esc(u.merk)} ${esc(u.model)}` : esc(u.car ?? "—")}</strong>
+          <small>${u.trim ? esc(u.trim) : ""} ${orDash(u.trans)}</small></td>
       <td>${u.year}</td>
       <td class="mono">${num(u.odo)} <span class="muted small">km</span></td>
-      <td>${badge(a.identity, IDENTITY_TONE[a.identity])}</td>
-      <td><span class="grade" data-g="${a.grade.label}">${a.grade.label}</span></td>
+      <td>${identityBadge(a)}</td>
+      <td>${a.hasGrade ? `<span class="grade" data-g="${a.grade.label}">${a.grade.label}</span>`
+        : `<span class="muted" title="Grade dihitung setelah pemeriksaan visual">—</span>`}</td>
       ${price}
       <td>${badge(STATUS_LABEL[st], STATUS_TONE[st])}</td>
       <td><button class="btn ghost iconbtn" data-act="open" data-code="${u.code}"
@@ -1043,7 +1156,7 @@ function viewVerifikasi(){
             <td><button class="rowlink mono" data-act="open" data-code="${u.code}">${u.code}</button>
                 <small style="color:var(--ink)">${esc(u.plat)}</small></td>
             <td><strong style="font-weight:600">${esc(u.merk)} ${esc(u.model)}</strong>
-                <small>${esc(u.trim)} ${esc(u.trans)}</small></td>
+                <small>${esc(u.trim)} ${orDash(u.trans)}</small></td>
             <td style="white-space:normal">${a.lowFields.map(r=>
               `<span class="badge amber" style="margin:2px 4px 2px 0">${esc(r.field.label)}</span>`).join("")}</td>
             <td>${badge((worst.conf*100).toFixed(0)+"%","red")}<small>${esc(worst.field.label)}</small></td>
@@ -1076,7 +1189,7 @@ function viewDetail(){
         <div>
           <div class="eyebrow muted mono" style="margin-bottom:6px">${esc(u.code)} · ${esc(u.branch)}</div>
           <h1>${esc(u.merk)} ${esc(u.model)}</h1>
-          <p>${esc(u.trim)} ${esc(u.trans)} · ${u.year} · ${esc(u.plat)}</p>
+          <p>${esc(u.trim)} ${orDash(u.trans)} · ${u.year} · ${esc(u.plat)}</p>
         </div>
         ${badge(STATUS_LABEL[st], STATUS_TONE[st])}
       </div>
@@ -1103,11 +1216,17 @@ function detailAside(u,a,st){
   const summary = `
     <section class="card pad-sm">
       <div class="flex" style="gap:14px">
+        ${a.hasGrade ? `
         <div class="score-ring sm" data-g="${g.label}">${g.label}</div>
         <div style="min-width:0">
           <p style="font-weight:700">Grade ${g.label}</p>
           <p class="small muted">Skor kerusakan ${g.score.toFixed(1)}</p>
-        </div>
+        </div>` : `
+        <div class="score-ring sm" data-g="">—</div>
+        <div style="min-width:0">
+          <p style="font-weight:700">Belum digrade</p>
+          <p class="small muted">Pemeriksaan visual belum dijalankan</p>
+        </div>`}
       </div>
       <div class="line" style="margin:14px 0"></div>
       <div class="kv" style="margin:8px 0"><span>Kilometer</span><b>${num(u.odo)} km</b></div>
@@ -1116,7 +1235,7 @@ function detailAside(u,a,st){
       <div class="kv" style="margin:8px 0"><span>Bahan bakar</span><b>${esc(u.fuel)}</b></div>
       <div class="kv" style="margin:8px 0"><span>Pajak sampai</span><b>${esc(u.taxUntil)}</b></div>
       <div class="kv" style="margin:8px 0"><span>Identitas</span>
-        <b>${badge(a.identity, IDENTITY_TONE[a.identity])}</b></div>
+        <b>${identityBadge(a)}</b></div>
     </section>`;
 
   const price = !c.price ? "" : (p ? `
@@ -1130,9 +1249,10 @@ function detailAside(u,a,st){
     </section>` : `
     <section class="card pad-sm">
       <span class="eyebrow muted">HARGA</span>
-      <p class="section-note" style="font-weight:600">Belum bisa dihitung</p>
-      <p class="small muted" style="margin-top:6px">Varian belum jelas. Penilai harus memilih varian
-        sebelum harga dihitung.</p>
+      <p class="section-note" style="font-weight:600">Belum dihitung</p>
+      <p class="small muted" style="margin-top:6px">${!reached(st,"PRICED")
+        ? `Unit belum sampai tahap penetapan harga. Status sekarang: <b>${esc(STATUS_LABEL[st])}</b>.`
+        : `Varian belum jelas. Penilai harus memilih varian sebelum harga dihitung.`}</p>
     </section>`);
 
   const controls = c.approve ? `
@@ -1158,8 +1278,129 @@ function detailAside(u,a,st){
   return summary + price + decision;
 }
 
+/* ==========================================================================
+   Capture gallery
+   ==========================================================================
+   Markup renders synchronously with empty frames; the images are fetched from
+   IndexedDB afterwards by hydrateGalleries(). render() is synchronous and the
+   photo store is not, so the two are deliberately separated rather than making
+   the whole render path async.
+   ========================================================================== */
+function galleryMarkup(u, kind, heading){
+  const id = `gal-${kind}-${u.code}`;
+  return `
+    <section class="card pad">
+      <div class="between"><h2>${esc(heading)}</h2>
+        <span class="small muted" data-gal-count="${id}"></span></div>
+      <div class="gal" data-gal="${id}" data-code="${u.code}" data-kind="${kind}">
+        <div class="gal-main" data-gal-main>
+          <div class="gal-empty">Memuat foto…</div>
+        </div>
+        <div class="gal-strip" data-gal-strip></div>
+        <p class="gal-note" data-gal-note></p>
+      </div>
+    </section>`;
+}
+
+/* Live object URLs, revoked before each hydrate so a long session does not
+   accumulate them. */
+let GAL_URLS = [];
+const GAL_STATE = new Map();   // gallery id -> active index
+
+function revokeGalleryUrls(){
+  GAL_URLS.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch{} });
+  GAL_URLS = [];
+}
+
+async function hydrateGalleries(){
+  const roots = [...document.querySelectorAll("[data-gal]")];
+  if(!roots.length) return;
+  revokeGalleryUrls();
+
+  for(const root of roots){
+    const id = root.dataset.gal, code = root.dataset.code, kind = root.dataset.kind;
+    const main = root.querySelector("[data-gal-main]");
+    const strip = root.querySelector("[data-gal-strip]");
+    const note = root.querySelector("[data-gal-note]");
+    const count = document.querySelector(`[data-gal-count="${id}"]`);
+
+    let shots = [];
+    try{ shots = (await CareadyPhotos.manifest(code)).filter(x=>x.kind===kind); }
+    catch(e){ shots = []; }
+
+    if(!shots.length){
+      main.innerHTML = `<div class="gal-empty">Tidak ada foto tersimpan untuk unit ini.<br>
+        Unit contoh bawaan tidak menyertakan foto — kirim inspeksi dari aplikasi inspektur.</div>`;
+      strip.innerHTML = ""; note.textContent = "";
+      if(count) count.textContent = "";
+      continue;
+    }
+
+    const idx = Math.min(GAL_STATE.get(id) ?? 0, shots.length-1);
+    GAL_STATE.set(id, idx);
+    if(count) count.textContent = `${shots.length} foto`;
+
+    const canUnmask = caps().unmask;
+    const revealed = App.unmasked.has(code) && canUnmask;
+
+    // thumbnails
+    const thumbs = await Promise.all(shots.map(async (sh,i)=>{
+      const url = await CareadyPhotos.objectUrl(code, sh.capId);
+      if(url) GAL_URLS.push(url);
+      const blur = sh.pii && !revealed ? " pii-blur" : "";
+      return `<button class="gal-thumb${blur}" data-act="gal-pick" data-gal-id="${id}"
+        data-i="${i}" aria-current="${i===idx}" title="${esc(sh.title)}">
+        ${url?`<img src="${url}" alt="${esc(sh.title)}">`:""}</button>`;
+    }));
+    strip.innerHTML = thumbs.join("");
+
+    // active frame
+    const act = shots[idx];
+    const url = await CareadyPhotos.objectUrl(code, act.capId);
+    if(url) GAL_URLS.push(url);
+    const blurred = act.pii && !revealed;
+    main.className = "gal-main" + (blurred ? " pii-blur" : "");
+    main.innerHTML = `
+      ${url?`<img src="${url}" alt="${esc(act.title)}">`:`<div class="gal-empty">Foto tidak terbaca.</div>`}
+      ${blurred ? `<div class="pii-shield">
+          <p>Foto STNK memuat nama dan alamat pemilik. Dikaburkan secara bawaan.</p>
+          ${canUnmask
+            ? `<button class="btn" data-act="unmask" data-code="${code}">Buka · akses tercatat</button>`
+            : badge("tidak berwenang")}
+        </div>` : ""}
+      ${shots.length>1?`
+        <button class="gal-nav" data-act="gal-prev" data-gal-id="${id}" aria-label="Sebelumnya">‹</button>
+        <button class="gal-nav" data-act="gal-next" data-gal-id="${id}" aria-label="Berikutnya">›</button>`:""}
+      <div class="gal-cap"><span>${esc(act.title)}</span>
+        <span>${idx+1} / ${shots.length}${act.w?` · ${act.w}×${act.h}`:""}</span></div>`;
+
+    note.textContent = kind === "doc"
+      ? "Sumber pembacaan dokumen di atas. Disimpan ulang pada resolusi lebih rendah."
+      : "Sembilan sudut wajib. Dasar temuan kerusakan di samping.";
+  }
+}
+
+function stepGallery(id, delta){
+  const root = document.querySelector(`[data-gal="${id}"]`);
+  if(!root) return;
+  const n = root.querySelectorAll("[data-act='gal-pick']").length;
+  if(!n) return;
+  GAL_STATE.set(id, ((GAL_STATE.get(id) ?? 0) + delta + n) % n);
+  hydrateGalleries();
+}
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("[data-act]");
+  if(!b) return;
+  const act = b.dataset.act, id = b.dataset.galId;
+  if(act === "gal-prev"){ stepGallery(id, -1); }
+  else if(act === "gal-next"){ stepGallery(id, +1); }
+  else if(act === "gal-pick"){ GAL_STATE.set(id, Number(b.dataset.i)); hydrateGalleries(); }
+});
+
 function tabIdentitas(u,a){
   const c = caps(), unmasked = App.unmasked.has(u.code) && c.unmask;
+  const docGallery = galleryMarkup(u, "doc", "Foto dokumen");
   const rows = icrRows(u), low = rows.filter(r=>r.low).length;
 
   const icrBody = rows.map(r=>{
@@ -1202,6 +1443,8 @@ function tabIdentitas(u,a){
   }).join("");
 
   return `
+    ${docGallery}
+
     <section class="card pad">
       <div class="between"><h2>Hasil pembacaan dokumen</h2>
         ${low?badge(low+" dari "+rows.length+" kolom perlu dicek","amber"):badge("Semua kolom terbaca","green")}</div>
@@ -1216,7 +1459,7 @@ function tabIdentitas(u,a){
     </section>
 
     <section class="card pad">
-      <div class="between"><h2>Pemeriksaan silang</h2>${badge(a.identity, IDENTITY_TONE[a.identity])}</div>
+      <div class="between"><h2>Pemeriksaan silang</h2>${identityBadge(a)}</div>
       <p class="small muted section-note">STNK adalah sumber utama untuk merk, tipe, model, dan tahun.
         Plat rangka dipakai sebagai pembanding dan tidak pernah menimpa isi STNK.</p>
       <div style="margin-top:8px">${checks}</div>
@@ -1225,7 +1468,8 @@ function tabIdentitas(u,a){
 
 function tabKondisi(u,a){
   const g = a.grade;
-  const damages = g.rows.map(r=>`
+  const extGallery = galleryMarkup(u, "ext", "Foto eksterior");
+  const damages = !a.hasGrade ? "" : g.rows.map(r=>`
     <div class="damage">
       <div class="damage-icon" data-s="${r.sev}">${icon("alert")}</div>
       <div class="damage-body">
@@ -1245,15 +1489,21 @@ function tabKondisi(u,a){
   }).join("");
 
   return `
+    ${extGallery}
+
     <section class="card pad">
-      <div class="between"><h2>Temuan kerusakan</h2>${badge("Bobot belum final","amber")}</div>
+      <div class="between"><h2>Temuan kerusakan</h2>${a.hasGrade?badge("Bobot belum final","amber"):badge("Belum dijalankan","")}</div>
+      ${a.hasGrade ? `
       <p class="small muted section-note">${esc(g.band.desc)}. Skor
         <b style="color:var(--ink)">${g.score.toFixed(1)}</b>, band ${g.pre}${
         g.pre!==g.label?`, diturunkan ke ${g.label}`:""}. Setiap poin bisa ditelusuri ke satu temuan.</p>
       ${g.applied.length?`<div class="notice amber section-note"><b>Grade diturunkan otomatis</b>
         <ul class="reason-list" style="color:inherit;font-size:13px">${g.applied.map(r=>
           `<li>${esc(r.why)}, maksimal grade <b>${r.cap}</b>.</li>`).join("")}</ul></div>`:""}
-      <div class="stack" style="gap:10px;margin-top:16px">${damages||`<p class="muted">Tidak ada temuan.</p>`}</div>
+      <div class="stack" style="gap:10px;margin-top:16px">${damages||`<p class="muted">Tidak ada temuan.</p>`}</div>`
+      : `<p class="small muted section-note">Pemeriksaan visual eksterior belum dijalankan untuk unit ini,
+         jadi belum ada temuan maupun skor. Daftar kosong di sini berarti belum diperiksa —
+         bukan berarti tidak ada kerusakan.</p>`}
     </section>
 
     <section class="card pad">
@@ -1274,12 +1524,28 @@ function tabPenilaian(u,a){
         katalog, bukan keputusan komersial. Data harga tidak dikirim ke sesi ini sama sekali.</p>
     </section>`;
 
-  if(!a.priceable) return `
+  /* Two different reasons a unit has no price, and they need different copy.
+     An unresolved variant is a blocker the appraiser must clear; not having
+     reached PRICED yet is simply the pipeline not having run. The variant
+     message used to be shown for both, so it read as a blocker on every
+     freshly submitted unit. */
+  if(!a.priceable) return !reached(statusOf(u), "PRICED") ? `
+    <section class="card pad">
+      <div class="between"><h2>Penilaian</h2>${badge("Belum dihitung","")}</div>
+      <p class="small muted section-note">Unit berada pada status
+        <b>${esc(STATUS_LABEL[statusOf(u)])}</b>. Harga dasar dihitung setelah grading
+        eksterior selesai dan varian sudah terikat ke katalog — belum ada angka untuk
+        ditampilkan, dan menampilkan angka apa pun di tahap ini akan menyesatkan.</p>
+      <ul class="reason-list">
+        <li>Pemeriksaan visual eksterior: belum dijalankan.</li>
+        <li>Varian dan harga baru (OTR): belum terikat ke katalog.</li>
+      </ul>
+    </section>` : `
     <section class="card pad">
       <div class="between"><h2>Penilaian</h2>${badge("Belum dihitung","amber")}</div>
       <div class="notice amber section-note">Harga belum bisa dihitung karena varian belum jelas.</div>
       <ul class="reason-list">
-        <li>Kolom tipe di STNK (<b>${esc(u.tipeRaw)}</b>) tidak cocok dengan katalog.</li>
+        <li>Kolom tipe di STNK (<b>${esc(u.tipeRaw ?? "tidak terbaca")}</b>) tidak cocok dengan katalog.</li>
         <li>STNK tidak mencatat transmisi, jadi varian tidak bisa disimpulkan.</li>
         <li>Penilai harus memilih varian secara manual sebelum harga dihitung.</li>
       </ul>
@@ -1309,7 +1575,7 @@ function tabPenilaian(u,a){
         <div class="kv"><span>Konservatif, dipakai sebagai harga dasar</span><b>${short(p.p30)}</b></div>
         <div class="kv"><span>Perkiraan tengah</span><b>${short(p.p50)}</b></div>
         <div class="kv"><span>Optimis</span><b>${short(p.p70)}</b></div>
-        <div class="kv"><span>Nilai sisa terhadap harga baru</span><b>${(u.anchor*100).toFixed(0)}%</b></div>
+        <div class="kv"><span>Nilai sisa terhadap harga baru</span><b>${u.anchor!=null?(u.anchor*100).toFixed(0)+"%":"—"}</b></div>
       </div>
       <p class="small muted section-note">Menentukan harga lantai itu keputusan risiko, bukan tebakan
         nilai tengah. Perkiraan tengah akan tepat separuh waktu dan kelewat tinggi separuh waktu, dan
@@ -1324,8 +1590,10 @@ function tabRiwayat(u,a){
      n: a.lowFields.length?`${a.lowFields.length} kolom di bawah ambang keyakinan`:""},
     {i:"check", t:"Pemeriksaan silang", d:`${a.checks.length} pemeriksaan dijalankan`,
      n: a.blockers.length?`${a.blockers.length} temuan penghambat`:"Tidak ada penghambat"},
-    {i:"alert", t:"Grade dihitung",     d:`Grade ${a.grade.label}, skor ${a.grade.score.toFixed(1)}`,
-     n: a.grade.applied.length?a.grade.applied.map(r=>r.why).join(" · "):""}
+    {i:"alert", t:a.hasGrade?"Grade dihitung":"Grade belum dihitung",
+     d:a.hasGrade?`Grade ${a.grade.label}, skor ${a.grade.score.toFixed(1)}`
+                 :"Pemeriksaan visual belum dijalankan",
+     n: a.hasGrade && a.grade.applied.length?a.grade.applied.map(r=>r.why).join(" · "):""}
   ];
   const session = App.log.map(e=>({i:"check", t:e.action, d:`${e.who} · ${e.t}`, n:e.detail}));
 
@@ -1396,7 +1664,7 @@ function viewRubrik(){
 function renderImpact(){
   const tb = $("impact");
   if(!tb) return;
-  tb.innerHTML = UNITS.map(u=>{
+  tb.innerHTML = UNITS.filter(u=>reached(statusOf(u),"GRADED")).map(u=>{
     const g = computeGrade(u.damages), was = App.baseline.get(u.code);
     let shift = `<span class="muted">tetap</span>`;
     if(was && was.label!==g.label){
@@ -1428,6 +1696,8 @@ function render(){
     verifikasi:viewVerifikasi, rubrik:viewRubrik, detail:viewDetail};
   $("main").innerHTML = views[App.view]();
   $("crumb").textContent = CRUMB[App.view];
+  /* Images come from IndexedDB, so they arrive after this synchronous pass. */
+  hydrateGalleries();
 
   // Detail is reached from a row, so inventory stays lit while reading one.
   const lit = App.view==="detail" ? "inventaris" : App.view;
@@ -1515,7 +1785,76 @@ document.addEventListener("change", e=>{
   if(e.target.id === "f-grade"){  App.filters.grade  = e.target.value; renderRows(); }
 });
 
+/* ==========================================================================
+   Demo reset
+   ==========================================================================
+   Two clicks, because one misclick mid-presentation would empty the thing
+   being presented. Removes submitted units and their photos; the fourteen
+   seeded units are compiled into this file and always come back.
+
+   Note this is a prototype affordance only. The real system has no delete:
+   a unit that should not proceed goes to REJECTED, and the audit trail is
+   append-only at the database level. A delete button here would teach the
+   wrong model, which is why this one is labelled as demo tooling and sits
+   nowhere near the approval controls.
+   ========================================================================== */
+let resetTimer = null;
+
+function resetHint(msg){ const h = $("reset-hint"); if(h) h.textContent = msg || ""; }
+
+function disarmReset(){
+  const b = $("reset-demo");
+  if(!b) return;
+  b.dataset.armed = "false";
+  b.textContent = "Muat ulang data";
+  resetHint("");
+  clearTimeout(resetTimer);
+}
+
+async function doReset(){
+  const n = CareadyStore.units().length;
+  let photos = 0;
+  try{ photos = (await CareadyPhotos.usage()).count; }catch{}
+  await CareadyStore.clear();
+  GAL_STATE.clear();
+  App.unmasked.clear();
+  App.decisions.clear();
+  App.baseline.clear();
+  App.log.length = 0;
+  disarmReset();
+  rebuildUnits();
+  App.selected = UNITS[0].code;
+  App.view = "inventaris";
+  render();
+  addLog("Data dimuat ulang", `${n} unit dan ${photos} foto dikosongkan`);
+  resetHint(`${n} unit, ${photos} foto dikosongkan.`);
+  setTimeout(()=>resetHint(""), 6000);
+}
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("#reset-demo");
+  if(!b){ if($("reset-demo")?.dataset.armed === "true") disarmReset(); return; }
+  if(b.dataset.armed === "true"){ doReset(); return; }
+  const n = CareadyStore.units().length;
+  if(!n){ resetHint("Tidak ada data untuk dikosongkan."); setTimeout(()=>resetHint(""), 3000); return; }
+  b.dataset.armed = "true";
+  b.textContent = `Hapus ${n} unit — klik lagi`;
+  resetHint("Unit contoh bawaan tetap.");
+  resetTimer = setTimeout(disarmReset, 5000);
+});
+
 /* Boot */
-UNITS.forEach(u=>App.baseline.set(u.code, computeGrade(u.damages)));
+rebuildUnits();
+if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0].code;
 render();
+
+/* A dashboard left open picks up an inspection submitted in another tab. */
+CareadyStore.subscribe(()=>{
+  const before = new Set(UNITS.map(u=>u.code));
+  rebuildUnits();
+  const fresh = UNITS.find(u=>!before.has(u.code));
+  if(fresh) addLog("Unit baru diterima", `${fresh.code} · ${fresh.plat}`);
+  if(!UNITS.some(u=>u.code===App.selected)) App.selected = UNITS[0].code;
+  render();
+});
 </script>

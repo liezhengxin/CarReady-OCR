@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Caready Inspektur</title>
 <meta name="theme-color" content="#ffffff">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -268,8 +269,25 @@ textarea{min-height:5rem;resize:vertical;font-family:inherit}
   <button class="btn btn-primary btn-wide" id="fab" hidden>+ Inspeksi unit baru</button>
 </div>
 
+<script src="caready-store.js"></script>
 <script>
 "use strict";
+
+/* caready-store.js holds the shared store and lives beside this file. If it
+   did not load, everything here still works until the moment of submission,
+   which then fails with a console error and no visible effect - so say so
+   instead. */
+if(typeof CareadyStore === "undefined" || typeof CareadySim === "undefined"){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const bar = document.createElement("div");
+    bar.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:999;background:#58151c;"
+      + "color:#fff;padding:.7rem 16px;font:600 .88rem/1.45 system-ui,sans-serif";
+    bar.textContent = "caready-store.js tidak termuat. Inspeksi tidak bisa dikirim. "
+      + "Pastikan file itu ada di folder yang sama dengan inspector.html.";
+    document.body.prepend(bar);
+  });
+  console.error("caready-store.js missing: CareadyStore/CareadySim undefined");
+}
 
 /* ==========================================================================
    Captures. Odometer is typed rather than photographed; the reading still
@@ -294,20 +312,28 @@ const EXT_CAPTURES = [
   {id:"e9", title:"Atap",                  sharp:90}
 ];
 
+/* Ids are the NonVisualCheckItem values from app/enums.py, which the
+   dashboard's CHECKLIST_LABEL also keys on. One vocabulary across the API,
+   the dashboard and this app - a flagged item must survive the crossing. */
 const CHECKS = [
-  {id:"flood",   t:"Indikasi banjir",       q:"Ada endapan lumpur atau karat di jalur kabel bawah karpet?"},
-  {id:"chassis", t:"Perbaikan rangka",      q:"Ada bekas las atau tarikan pada rangka?"},
-  {id:"engine",  t:"Kondisi mesin",         q:"Suara kasar saat idle, asap tidak wajar, atau rembes oli?"},
-  {id:"trans",   t:"Kondisi transmisi",     q:"Perpindahan gigi menghentak, selip, atau lambat masuk?"},
-  {id:"odo",     t:"Manipulasi odometer",   q:"Angka odometer tidak sejalan dengan kondisi interior?"},
-  {id:"airbag",  t:"Airbag pernah meletus", q:"Cover airbag pernah dibuka atau lampu indikator menyala?"},
-  {id:"doc",     t:"Kelengkapan dokumen",   q:"Ada dokumen wajib yang tidak ada saat inspeksi?"}
+  {id:"flood_indication",       t:"Indikasi banjir",       q:"Ada endapan lumpur atau karat di jalur kabel bawah karpet?"},
+  {id:"chassis_repair",         t:"Perbaikan rangka",      q:"Ada bekas las atau tarikan pada rangka?"},
+  {id:"engine_condition",       t:"Kondisi mesin",         q:"Suara kasar saat idle, asap tidak wajar, atau rembes oli?"},
+  {id:"transmission_condition", t:"Kondisi transmisi",     q:"Perpindahan gigi menghentak, selip, atau lambat masuk?"},
+  {id:"odometer_tampering",     t:"Manipulasi odometer",   q:"Angka odometer tidak sejalan dengan kondisi interior?"},
+  {id:"airbag_deployed",        t:"Airbag pernah meletus", q:"Cover airbag pernah dibuka atau lampu indikator menyala?"},
+  {id:"document_completeness",  t:"Kelengkapan dokumen",   q:"Ada dokumen wajib yang tidak ada saat inspeksi?"}
 ];
 
 /* ==========================================================================
    Pool and history
    ========================================================================== */
 const POOL = [
+  /* The two demo vehicles. Outcomes are pre-authored in caready-store.js and
+     selected by plate. Listed first. */
+  {id:"d1", plat:"B 9369 VBA",  car:"Toyota Hilux 2.4G DC 4x4",     year:2021, asal:"Armada",     masuk:"18 Sep"},
+  {id:"d2", plat:"B 2914 RFK",  car:"Honda Brio Satya E",           year:2021, asal:"Perorangan", masuk:"18 Sep"},
+
   {id:"u1", plat:"B 1842 KZL",  car:"Toyota Avanza G",             year:2019, asal:"Leasing",    masuk:"14 Sep"},
   {id:"u2", plat:"L 3391 QBN",  car:"Daihatsu Xenia R",            year:2018, asal:"Leasing",    masuk:"15 Sep"},
   {id:"u3", plat:"B 2207 SFD",  car:"Honda Brio Satya E",          year:2021, asal:"Perorangan", masuk:"15 Sep"},
@@ -417,6 +443,7 @@ const app = {
   online:navigator.onLine,
   busy:false,
   submitted:false,
+  storeWarning:"",
   unit:null,
   odo:"",
   query:"",
@@ -551,13 +578,26 @@ function renderSummary(){
   const extN = EXT_CAPTURES.filter(c=>app.shots.get(c.id)?.accepted).length;
   const flaggedShots = [...app.shots.values()].filter(s=>s.accepted && s.overridden).length;
   const flaggedChecks = CHECKS.filter(c=>app.checks.get(c.id)?.answer==="flagged").length;
+  /* Two different ways the checklist can be incomplete, and they need
+     different wording: an item nobody answered, versus an item flagged
+     without the mandatory note. Both used to read "Belum lengkap", which
+     left the submit button disabled with no way to tell why. */
+  const unanswered = CHECKS.filter(c=>!app.checks.get(c.id)?.answer);
+  const needNote = CHECKS.filter(c=>{
+    const a = app.checks.get(c.id);
+    return a?.answer === "flagged" && !(a.note ?? "").trim();
+  });
+  const names = list => list.map(c=>c.t).join(", ");
 
   const rows = [
     {k:"Unit", v:app.unit ? `${app.unit.plat} · ${app.unit.car}` : "-", ok:true},
     {k:"Odometer", v: Number(app.odo)>0 ? `${Number(app.odo).toLocaleString("id-ID")} km` : "Belum diisi", ok:Number(app.odo)>0},
     {k:"Foto dokumen", v:`${docN} dari ${DOC_CAPTURES.length}`, ok:docN===DOC_CAPTURES.length},
     {k:"Foto eksterior", v:`${extN} dari ${EXT_CAPTURES.length}`, ok:extDone()},
-    {k:"Pemeriksaan", v: chkDone() ? (flaggedChecks?`${flaggedChecks} item ditandai`:"Semua bersih") : "Belum lengkap", ok:chkDone()},
+    {k:"Pemeriksaan", ok:chkDone(), v: chkDone()
+       ? (flaggedChecks ? `${flaggedChecks} item ditandai` : "Semua bersih")
+       : unanswered.length ? `Belum dijawab: ${names(unanswered)}`
+       : `Catatan wajib untuk: ${names(needNote)}`},
     {k:"Foto lolos lewat override", v: flaggedShots?`${flaggedShots} foto`:"Tidak ada", ok:flaggedShots===0}
   ];
 
@@ -574,13 +614,24 @@ function renderSummary(){
         <div class="code-big">${esc(app.code)}</div>
         <p>${app.online ? `${n} foto sudah sampai di kantor.`
           : `${n} foto tersimpan di HP dan terkirim otomatis begitu ada sinyal.`}</p>
+        <p style="font-size:.82rem;margin-top:.5rem">Unit sudah masuk daftar inventaris.</p>
       </div>
+      ${app.storeWarning ? `<div class="empty" style="border-color:var(--warn);color:var(--warn);margin-top:.8rem">${esc(app.storeWarning)}</div>` : ""}
       <button class="btn" style="width:100%;margin-top:1rem" data-act="home">Kembali ke beranda</button>`;
   } else if(readyToSubmit()){
     area.innerHTML = `<button class="btn btn-primary" style="width:100%" data-act="submit">Kirim inspeksi</button>`;
   } else {
-    area.innerHTML = `<div class="empty" style="border-color:var(--warn);color:var(--warn)">
-      Masih ada yang belum lengkap. Lihat baris kuning di atas.</div>`;
+    const blockers = [];
+    if(!(Number(app.odo) > 0)) blockers.push("Isi odometer di langkah Dokumen");
+    if(docN < DOC_CAPTURES.length) blockers.push(`Foto dokumen ${docN} dari ${DOC_CAPTURES.length}`);
+    if(!extDone()) blockers.push(`Foto eksterior ${extN} dari ${EXT_CAPTURES.length}`);
+    if(unanswered.length) blockers.push(`Jawab pemeriksaan: ${names(unanswered)}`);
+    if(needNote.length) blockers.push(`Tulis catatan untuk: ${names(needNote)}`);
+    area.innerHTML = `<div class="empty" style="border-color:var(--warn);color:var(--warn);text-align:left">
+      <b>Belum bisa dikirim</b>
+      <ul style="margin:.5rem 0 0;padding-left:1.1rem;line-height:1.6">
+        ${blockers.map(b=>`<li>${esc(b)}</li>`).join("")}
+      </ul></div>`;
   }
 }
 
@@ -683,7 +734,7 @@ document.addEventListener("click", e=>{
     renderAll();
     return;
   }
-  if(act==="submit"){ submit(); return; }
+  if(act==="submit"){ submit().catch(e=>console.error(e)); return; }
   if(act==="home"){ resetFlow(); go("beranda"); return; }
 });
 
@@ -731,10 +782,70 @@ function syncNetwork(){
 window.addEventListener("online", syncNetwork);
 window.addEventListener("offline", syncNetwork);
 
-function submit(){
+/* Store the accepted captures so the dashboard can show them. Re-encoded and
+   downscaled on the way in - see CareadyPhotos. The STNK is marked pii so the
+   dashboard blurs it by default and reveals it on the same action that reveals
+   the masked text fields. */
+async function persistPhotos(code){
+  const specs = [...DOC_CAPTURES.map(c=>({...c, kind:"doc"})),
+                 ...EXT_CAPTURES.map(c=>({...c, kind:"ext"}))];
+  const out = [];
+  for(const [ord, spec] of specs.entries()){
+    const shot = app.shots.get(spec.id);
+    if(!shot?.accepted) continue;
+    try{
+      out.push(await CareadyPhotos.put(code, spec.id, shot.metrics.url,
+        {title:spec.title, kind:spec.kind, pii:spec.id === "stnk", ord}));
+    }catch(e){
+      /* One unwritable photo must not lose the whole inspection. */
+      console.warn("foto tidak tersimpan:", spec.id, e);
+    }
+  }
+  return out;
+}
+
+async function submit(){
   app.submitted = true;
-  app.code = "CR-26-" + (Math.floor(Math.random()*9000)+1000);
+  /* Allocated against the store rather than at random: two submissions in one
+     session used to be able to collide, and a random code could also land on
+     one of the dashboard's seeded units. */
+  app.code = CareadyStore.nextCode();
   const n = [...app.shots.values()].filter(s=>s.accepted).length;
+
+  /* Flagged checklist items are genuine inspector output, so they cross to the
+     dashboard verbatim - a flagged item carries its mandatory note. */
+  const checklist = {};
+  CHECKS.forEach(c=>{
+    const a = app.checks.get(c.id);
+    if(a?.answer === "flagged") checklist[c.id] = (a.note ?? "").trim() || true;
+  });
+
+  const draft = {
+    code:app.code, status:"DRAFT",
+    plat:app.unit.plat, car:app.unit.car, year:app.unit.year, asal:app.unit.asal,
+    odo:Number(app.odo),            // typed by the inspector, so it is real
+    photos:n,
+    checklist,
+    submittedAt:new Date().toISOString(),
+    inspector:"inspektur@caready.local",
+    synthetic:true
+  };
+
+  /* Write DRAFT, then the simulated ICR result, so the dashboard observes the
+     same two transitions the real worker will emit rather than a unit that
+     appears fully read the instant it is created. */
+  /* Photos first, so the unit arrives in the dashboard already carrying its
+     manifest rather than appearing and then growing images. */
+  let photoManifest = [];
+  try{ photoManifest = await persistPhotos(app.code); }
+  catch(e){ console.warn("penyimpanan foto gagal:", e); }
+  draft.photoManifest = photoManifest;
+  draft.photos = photoManifest.length || n;
+
+  const wrote = CareadyStore.addUnit(draft) && CareadyStore.addUnit(CareadySim.result(draft));
+  app.storeWarning = wrote ? "" :
+    "Tersimpan di perangkat ini saja - dasbor tidak dapat diperbarui.";
+
   app.history.unshift({
     code:app.code, plat:app.unit.plat, car:app.unit.car, year:app.unit.year,
     jam:new Date().toTimeString().slice(0,5), foto:n, sent:app.online
